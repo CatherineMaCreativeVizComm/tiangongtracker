@@ -1,17 +1,15 @@
 <svelte:options customElement={{ tag: "lantern-wc", shadow: "open" }} />
 
 <script>
-  import { onMount } from "svelte"
+  import { onMount, onDestroy } from "svelte"
   import * as THREE from "three"
   import { gsap } from "gsap"
   import { ScrollTrigger } from "gsap/ScrollTrigger"
 
   const browser = typeof window !== "undefined"
 
-  export let foregroundSrc =
-    "https://multimedia.scmp.com/components/2026/lantern-wc/foregroundImg.png"
-  export let backgroundSrc =
-    "https://multimedia.scmp.com/components/2026/lantern-wc/backgroundImg.png"
+  export let foregroundSrc = "https://multimedia.scmp.com/components/2026/lantern-wc/foregroundImg.png"
+  export let backgroundSrc = "https://multimedia.scmp.com/components/2026/lantern-wc/backgroundImg.png"
   export let scrollspeed = 1
   export let screenHeight = 1200
 
@@ -19,17 +17,11 @@
   let stickyInner
   let canvasContainer
   let candleOverlay
-
-  let scene
-  let camera
-  let renderer
-  let bgMesh
-  let fgMesh
-  let candleLight
+  let scene, camera, renderer, bgMesh, fgMesh, candleLight, loader
   let animationId
-  let ctx
-  let loader
-
+  let ctx 
+  let isInitialized = false 
+  let observer 
   let prevForegroundSrc = foregroundSrc
   let prevBackgroundSrc = backgroundSrc
 
@@ -45,9 +37,9 @@
     return tex
   }
 
-  const initThreeJS = () => {
-    if (!canvasContainer) return
-
+  const init = () => {
+    if (isInitialized || !canvasContainer) return
+    
     loader = new THREE.TextureLoader()
     scene = new THREE.Scene()
     scene.background = new THREE.Color(0x220500)
@@ -107,15 +99,15 @@
     scene.add(flameMesh)
 
     const clock = new THREE.Clock()
-
     const animate = () => {
       animationId = requestAnimationFrame(animate)
       const time = clock.getElapsedTime()
 
-      candleLight.intensity =
-        600 + Math.sin(time * 15) * 100 + Math.random() * 50
+      if (candleLight) {
+        candleLight.intensity = 600 + Math.sin(time * 15) * 100 + Math.random() * 50
+      }
 
-      const autoRot = time * (scrollspeed * 0.1)
+      const autoRot = time * (Number(scrollspeed) * 0.1)
       const scrollRot = scrollProgress.value * (Math.PI * 2)
 
       if (bgMesh && fgMesh) {
@@ -125,76 +117,13 @@
 
       renderer.render(scene, camera)
     }
-
     animate()
-  }
 
-  const onResize = () => {
-    if (camera && renderer && canvasContainer) {
-      const width = canvasContainer.clientWidth
-      const height = canvasContainer.clientHeight || 1
-      camera.aspect = width / height
-      camera.updateProjectionMatrix()
-      renderer.setSize(width, height)
-    }
-  }
-
-  const updateTextures = () => {
-    if (!loader || !bgMesh || !fgMesh) return
-
-    if (
-      backgroundSrc &&
-      backgroundSrc !== prevBackgroundSrc &&
-      bgMesh.material
-    ) {
-      bgMesh.material.map = loadTexture(backgroundSrc)
-      bgMesh.material.needsUpdate = true
-      prevBackgroundSrc = backgroundSrc
-    }
-
-    if (
-      foregroundSrc &&
-      foregroundSrc !== prevForegroundSrc &&
-      fgMesh.material
-    ) {
-      fgMesh.material.map = loadTexture(foregroundSrc)
-      fgMesh.material.needsUpdate = true
-      prevForegroundSrc = foregroundSrc
-    }
-  }
-
-  const destroyThree = () => {
-    cancelAnimationFrame(animationId)
-    if (bgMesh) {
-      bgMesh.geometry.dispose()
-      bgMesh.material.dispose()
-    }
-    if (fgMesh) {
-      fgMesh.geometry.dispose()
-      fgMesh.material.dispose()
-    }
-    if (renderer) {
-      renderer.dispose()
-    }
-    scene = null
-    camera = null
-    renderer = null
-    bgMesh = null
-    fgMesh = null
-    candleLight = null
-    loader = null
-  }
-
-  onMount(() => {
-    if (!browser) return
     gsap.registerPlugin(ScrollTrigger)
-
-    initThreeJS()
-    window.addEventListener("resize", onResize)
-
+    
     ctx = gsap.context(() => {
-      let h = screenHeight
-      if (window.innerWidth < 768) h = screenHeight * 0.8
+      let h = Number(screenHeight)
+      if (window.innerWidth < 768) h = h * 0.8
       if (stickyWrapper) stickyWrapper.style.height = `${h * 3}px`
 
       if (candleOverlay) {
@@ -216,25 +145,100 @@
           end: "bottom bottom",
           pin: stickyInner,
           scrub: 0.5,
+          invalidateOnRefresh: true
         },
       })
     }, stickyWrapper)
 
+    isInitialized = true
+  }
+
+  const kill = () => {
+    if (!isInitialized) return
+
+    cancelAnimationFrame(animationId)
+
+    if (ctx) {
+      ctx.revert() 
+      ctx = null
+    }
+
+    if (bgMesh) {
+      bgMesh.geometry.dispose()
+      bgMesh.material.dispose()
+    }
+    if (fgMesh) {
+      fgMesh.geometry.dispose()
+      fgMesh.material.dispose()
+    }
+    if (renderer) {
+      renderer.dispose()
+      if (canvasContainer) canvasContainer.innerHTML = "" 
+    }
+
+    scene = null
+    camera = null
+    renderer = null
+    bgMesh = null
+    fgMesh = null
+    candleLight = null
+    loader = null
+    isInitialized = false
+  }
+
+  const onResize = () => {
+    if (isInitialized && camera && renderer && canvasContainer) {
+      const width = canvasContainer.clientWidth
+      const height = canvasContainer.clientHeight || 1
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+      renderer.setSize(width, height)
+    }
+  }
+
+  const updateTextures = () => {
+    if (!isInitialized || !loader || !bgMesh || !fgMesh) return
+
+    if (backgroundSrc && backgroundSrc !== prevBackgroundSrc && bgMesh.material) {
+      bgMesh.material.map = loadTexture(backgroundSrc)
+      bgMesh.material.needsUpdate = true
+      prevBackgroundSrc = backgroundSrc
+    }
+
+    if (foregroundSrc && foregroundSrc !== prevForegroundSrc && fgMesh.material) {
+      fgMesh.material.map = loadTexture(foregroundSrc)
+      fgMesh.material.needsUpdate = true
+      prevForegroundSrc = foregroundSrc
+    }
+  }
+
+  onMount(() => {
+    if (!browser) return
+    observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          if (!isInitialized) init()
+        } else {
+          if (isInitialized) kill()
+        }
+      })
+    }, {
+      rootMargin: "100px 0px" 
+    })
+
+    if (stickyWrapper) observer.observe(stickyWrapper)
+
+    window.addEventListener("resize", onResize)
+
     return () => {
       window.removeEventListener("resize", onResize)
-      if (ctx) ctx.revert()
-      destroyThree()
+      if (observer) observer.disconnect()
+      kill() 
     }
   })
 
-  $: if (browser && renderer && (foregroundSrc || backgroundSrc)) {
+  $: if (browser && isInitialized && (foregroundSrc || backgroundSrc)) {
     updateTextures()
-  }
-
-  $: if (browser && stickyWrapper) {
-    let h = screenHeight
-    if (window.innerWidth < 768) h = screenHeight * 0.8
-    stickyWrapper.style.height = `${h * 3}px`
   }
 </script>
 
@@ -254,6 +258,12 @@
 </section>
 
 <style>
+  :host {
+    display: block;
+    width: 100%;
+    position: relative;
+  }
+
   :global(body) {
     overflow-x: hidden;
     min-width: 290px;
@@ -263,6 +273,7 @@
     -webkit-touch-callout: none;
     -webkit-font-smoothing: antialiased;
   }
+  
   * {
     margin: 0;
     padding: 0;
@@ -272,11 +283,13 @@
   .revolvingLattern {
     width: 100%;
     margin: 0 auto;
+    background-color: #220500;
   }
 
   .stickyWrapper {
     position: relative;
     width: 100%;
+    min-height: 100vh; 
   }
 
   .stickyInner {
