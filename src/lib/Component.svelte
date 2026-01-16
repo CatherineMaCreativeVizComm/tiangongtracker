@@ -1,130 +1,232 @@
 <svelte:options customElement={{ tag: "lantern-wc", shadow: "open" }} />
 
 <script>
-  import { onMount, onDestroy } from "svelte"
-  import * as THREE from "three"
-  import { gsap } from "gsap"
-  import { ScrollTrigger } from "gsap/ScrollTrigger"
+  import { onMount } from "svelte";
+  import * as THREE from "three";
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-  const browser = typeof window !== "undefined"
+  const browser = typeof window !== "undefined";
 
-  export let foregroundSrc = "https://multimedia.scmp.com/components/2026/lantern-wc/foregroundImg.png"
-  export let backgroundSrc = "https://multimedia.scmp.com/components/2026/lantern-wc/backgroundImg.png"
-  export let scrollspeed = 1
-  export let screenHeight = 1200
+  export let foregroundSrc = "https://multimedia.scmp.com/components/2026/lantern-wc/foregroundImg.png";
+  export let backgroundSrc = [
+	  'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/1.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/2.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/3.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/4.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/5.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/6.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/7.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/8.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/9.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/10.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/11.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/12.png',
+    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/13.png'
+  ];
+  export let scrollspeed = 1;
+  export let screenHeight = 1200;
 
-  let stickyWrapper
-  let stickyInner
-  let canvasContainer
-  let candleOverlay
-  let scene, camera, renderer, bgMesh, fgMesh, candleLight, loader
-  let animationId
-  let ctx 
-  let isInitialized = false 
-  let observer 
-  let prevForegroundSrc = foregroundSrc
-  let prevBackgroundSrc = backgroundSrc
+  let stickyWrapper, stickyInner, canvasContainer, candleOverlay;
+  let scene, camera, renderer, bgGroup, fgMesh, candleLight, loader;
+  let animationId;
+  let ctx;
+  let isInitialized = false;
+  let observer;
 
-  const scrollProgress = { value: 0 }
+  let prevForegroundSrc = foregroundSrc;
+  let prevBackgroundSrc = backgroundSrc;
+  const scrollProgress = { value: 0 };
 
-  const loadTexture = (url) => {
-    if (!loader || !url) return null
-    const tex = loader.load(url)
-    tex.wrapS = THREE.RepeatWrapping
-    tex.wrapT = THREE.ClampToEdgeWrapping
-    tex.colorSpace = THREE.SRGBColorSpace
-    tex.repeat.set(2, 1)
-    return tex
-  }
+  const parseBackgroundImages = (input) => {
+    if (!input) return [];
+    let urls = [];
+    if (Array.isArray(input)) {
+      urls = input;
+    } else if (typeof input === "string") {
+      try {
+        const parsed = JSON.parse(input);
+        if (Array.isArray(parsed)) urls = parsed;
+        else urls = [input];
+      } catch (e) {
+        urls = input
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+      }
+    }
+    if (urls.length === 0) return [];
+    const result = [];
+    for (let i = 0; i < 13; i++) {
+      result.push(urls[i % urls.length]);
+    }
+    return result;
+  };
+
+  const loadTexture = (url, isPanel = false) => {
+    if (!loader || !url || typeof url !== "string") return null;
+    const tex = loader.load(url);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    if (isPanel) {
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.repeat.set(1, 1);
+    } else {
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.repeat.set(2, 1);
+    }
+    return tex;
+  };
 
   const init = () => {
-    if (isInitialized || !canvasContainer) return
-    
-    loader = new THREE.TextureLoader()
-    scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x220500)
-    scene.fog = new THREE.FogExp2(0x220500, 0.02)
+    if (isInitialized || !canvasContainer) return;
 
-    const width = canvasContainer.clientWidth
-    const height = canvasContainer.clientHeight || 1
+    loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
 
-    camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100)
-    camera.position.set(0, 0, 35)
-    camera.lookAt(0, 0, 0)
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x220500);
+    scene.fog = new THREE.FogExp2(0x220500, 0.02);
 
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setSize(width, height)
-    renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 2.3
+    const width = canvasContainer.clientWidth;
+    const height = canvasContainer.clientHeight || 1;
 
-    canvasContainer.innerHTML = ""
-    canvasContainer.appendChild(renderer.domElement)
+    camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
+    camera.position.set(0, 0, 35);
+    camera.lookAt(0, 0, 0);
 
-    const bgGeo = new THREE.CylinderGeometry(9, 9, 7, 64, 1, true)
-    const bgMat = new THREE.MeshStandardMaterial({
-      map: loadTexture(backgroundSrc),
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.9,
-      emissive: 0xff5500,
-      emissiveIntensity: 0.8,
-      roughness: 0.4,
-    })
-    bgMesh = new THREE.Mesh(bgGeo, bgMat)
-    scene.add(bgMesh)
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    const fgGeo = new THREE.CylinderGeometry(15, 15, 10, 64, 1, true)
+    canvasContainer.innerHTML = "";
+    canvasContainer.appendChild(renderer.domElement);
+
+    bgGroup = new THREE.Group();
+    scene.add(bgGroup);
+
+    const totalCount = 13;
+    const finalCount = 12;
+    const radius = 9;
+    const panelWidth = 2 * radius * Math.sin(Math.PI / totalCount) * 1.02;
+    const panelHeight = 7;
+
+    const bgUrls = parseBackgroundImages(backgroundSrc);
+
+    for (let i = 0; i < totalCount; i++) {
+      const url = bgUrls[i];
+      const tex = loadTexture(url, true);
+      const geo = new THREE.PlaneGeometry(panelWidth, panelHeight);
+
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 1,
+        color: 0xffffff,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      const angleStart = (i / totalCount) * Math.PI * 2;
+      const angleEnd = (i / finalCount) * Math.PI * 2;
+
+      mesh.position.x = Math.sin(angleStart) * radius;
+      mesh.position.z = Math.cos(angleStart) * radius;
+      mesh.rotation.y = angleStart;
+
+      mesh.userData = {
+        id: i,
+        angleStart: angleStart,
+        angleEnd: angleEnd,
+        radius: radius,
+        initialY: mesh.position.y,
+        bobSpeed: 1 + Math.random() * 1.5,
+        bobOffset: Math.random() * Math.PI * 2,
+        bobAmp: 0.15 + Math.random() * 0.1,
+      };
+
+      bgGroup.add(mesh);
+    }
+
+    const fgTex = loadTexture(foregroundSrc, false);
+    const fgGeo = new THREE.CylinderGeometry(15, 15, 10, 64, 1, true);
     const fgMat = new THREE.MeshStandardMaterial({
-      map: loadTexture(foregroundSrc),
+      map: fgTex,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.95,
       emissive: 0xff5500,
-      emissiveIntensity: 0.4,
+      emissiveIntensity: 0.5,
       alphaTest: 0.1,
-    })
-    fgMesh = new THREE.Mesh(fgGeo, fgMat)
-    scene.add(fgMesh)
+      depthWrite: false,
+    });
+    fgMesh = new THREE.Mesh(fgGeo, fgMat);
+    fgMesh.renderOrder = 1;
+    scene.add(fgMesh);
 
-    candleLight = new THREE.PointLight(0xff6600, 1500, 45)
-    scene.add(candleLight)
+    candleLight = new THREE.PointLight(0xff6600, 100, 45);
+    scene.add(candleLight);
+    scene.add(new THREE.AmbientLight(0xffaa33, 0.8));
 
-    const ambient = new THREE.AmbientLight(0xffaa33, 0.5)
-    scene.add(ambient)
-
-    const flameGeo = new THREE.SphereGeometry(0.3, 16, 16)
-    const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa88 })
-    const flameMesh = new THREE.Mesh(flameGeo, flameMat)
-    scene.add(flameMesh)
-
-    const clock = new THREE.Clock()
+    const clock = new THREE.Clock();
     const animate = () => {
-      animationId = requestAnimationFrame(animate)
-      const time = clock.getElapsedTime()
+      animationId = requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
 
-      if (candleLight) {
-        candleLight.intensity = 600 + Math.sin(time * 15) * 100 + Math.random() * 50
+      let transition = 0;
+      const startT = 0.3;
+      const endT = 0.8;
+
+      if (scrollProgress.value > startT) {
+        transition = (scrollProgress.value - startT) / (endT - startT);
+        if (transition > 1) transition = 1;
       }
 
-      const autoRot = time * (Number(scrollspeed) * 0.1)
-      const scrollRot = scrollProgress.value * (Math.PI * 2)
+      const smoothT = transition * transition * (3 - 2 * transition);
 
-      if (bgMesh && fgMesh) {
-        bgMesh.rotation.y = autoRot * 1.5 + scrollRot * 1.5
-        fgMesh.rotation.y = autoRot * 0.8 + scrollRot * 0.8
+      camera.position.y = 0 + 40 * smoothT;
+      camera.position.z = 35 - 34.9 * smoothT;
+      camera.lookAt(0, 0, 0);
+
+      if (bgGroup) {
+        bgGroup.children.forEach((child, index) => {
+          const u = child.userData;
+
+          if (index === 12) {
+            child.visible = smoothT < 0.9;
+            if (child.material) child.material.opacity = 1 - smoothT;
+          } else {
+            const currentAngle = u.angleStart * (1 - smoothT) + u.angleEnd * smoothT;
+            child.position.x = Math.sin(currentAngle) * u.radius;
+            child.position.z = Math.cos(currentAngle) * u.radius;
+            child.rotation.y = currentAngle * (1 - smoothT);
+            child.rotation.x = (-Math.PI / 2) * smoothT;
+          }
+
+          child.position.y =
+            u.initialY + Math.sin(time * u.bobSpeed + u.bobOffset) * u.bobAmp;
+        });
       }
 
-      renderer.render(scene, camera)
-    }
-    animate()
+      if (candleLight) candleLight.intensity = 100 + Math.sin(time * 15) * 20;
 
-    gsap.registerPlugin(ScrollTrigger)
-    
+      const speedMult = 1 - 0.5 * smoothT;
+      const autoRot = -time * (Number(scrollspeed) * 0.1) * speedMult;
+      const scrollRot = -scrollProgress.value * (Math.PI * 2);
+
+      if (bgGroup) bgGroup.rotation.y = autoRot * 1.5 + scrollRot * 1.5;
+      if (fgMesh) fgMesh.rotation.y = autoRot * 0.8 + scrollRot * 0.8;
+
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    gsap.registerPlugin(ScrollTrigger);
     ctx = gsap.context(() => {
-      let h = Number(screenHeight)
-      if (window.innerWidth < 768) h = h * 0.8
-      if (stickyWrapper) stickyWrapper.style.height = `${h * 3}px`
+      let h = Number(screenHeight);
+      if (window.innerWidth < 768) h = h * 0.8;
+      if (stickyWrapper) stickyWrapper.style.height = `${h * 4}px`;
 
       if (candleOverlay) {
         gsap.to(candleOverlay, {
@@ -133,7 +235,7 @@
           repeat: -1,
           yoyo: true,
           ease: "rough({ strength: 1, points: 20, randomize: true })",
-        })
+        });
       }
 
       gsap.to(scrollProgress, {
@@ -145,100 +247,114 @@
           end: "bottom bottom",
           pin: stickyInner,
           scrub: 0.5,
-          invalidateOnRefresh: true
+          invalidateOnRefresh: true,
         },
-      })
-    }, stickyWrapper)
+      });
+    }, stickyWrapper);
 
-    isInitialized = true
-  }
+    isInitialized = true;
+  };
 
   const kill = () => {
-    if (!isInitialized) return
-
-    cancelAnimationFrame(animationId)
-
+    if (!isInitialized) return;
+    cancelAnimationFrame(animationId);
     if (ctx) {
-      ctx.revert() 
-      ctx = null
+      ctx.revert();
+      ctx = null;
     }
 
-    if (bgMesh) {
-      bgMesh.geometry.dispose()
-      bgMesh.material.dispose()
+    if (bgGroup) {
+      while (bgGroup.children.length > 0) {
+        const child = bgGroup.children[0];
+        bgGroup.remove(child);
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      }
     }
+
     if (fgMesh) {
-      fgMesh.geometry.dispose()
-      fgMesh.material.dispose()
+      fgMesh.geometry.dispose();
+      fgMesh.material.dispose();
     }
     if (renderer) {
-      renderer.dispose()
-      if (canvasContainer) canvasContainer.innerHTML = "" 
+      renderer.dispose();
+      if (canvasContainer) canvasContainer.innerHTML = "";
     }
 
-    scene = null
-    camera = null
-    renderer = null
-    bgMesh = null
-    fgMesh = null
-    candleLight = null
-    loader = null
-    isInitialized = false
-  }
+    scene = null;
+    camera = null;
+    renderer = null;
+    bgGroup = null;
+    fgMesh = null;
+    candleLight = null;
+    loader = null;
+    isInitialized = false;
+  };
 
   const onResize = () => {
     if (isInitialized && camera && renderer && canvasContainer) {
-      const width = canvasContainer.clientWidth
-      const height = canvasContainer.clientHeight || 1
-      camera.aspect = width / height
-      camera.updateProjectionMatrix()
-      renderer.setSize(width, height)
+      const width = canvasContainer.clientWidth;
+      const height = canvasContainer.clientHeight || 1;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
     }
-  }
+  };
 
   const updateTextures = () => {
-    if (!isInitialized || !loader || !bgMesh || !fgMesh) return
+    if (!isInitialized || !loader || !bgGroup || !fgMesh) return;
 
-    if (backgroundSrc && backgroundSrc !== prevBackgroundSrc && bgMesh.material) {
-      bgMesh.material.map = loadTexture(backgroundSrc)
-      bgMesh.material.needsUpdate = true
-      prevBackgroundSrc = backgroundSrc
+    if (
+      foregroundSrc &&
+      foregroundSrc !== prevForegroundSrc &&
+      fgMesh.material
+    ) {
+      fgMesh.material.map = loadTexture(foregroundSrc, false);
+      fgMesh.material.needsUpdate = true;
+      prevForegroundSrc = foregroundSrc;
     }
 
-    if (foregroundSrc && foregroundSrc !== prevForegroundSrc && fgMesh.material) {
-      fgMesh.material.map = loadTexture(foregroundSrc)
-      fgMesh.material.needsUpdate = true
-      prevForegroundSrc = foregroundSrc
+    if (
+      backgroundSrc &&
+      JSON.stringify(backgroundSrc) !== JSON.stringify(prevBackgroundSrc)
+    ) {
+      const bgUrls = parseBackgroundImages(backgroundSrc);
+      bgGroup.children.forEach((child, i) => {
+        const url = bgUrls[i % bgUrls.length];
+        child.material.map = loadTexture(url, true);
+        child.material.needsUpdate = true;
+      });
+      prevBackgroundSrc = backgroundSrc;
     }
-  }
+  };
 
   onMount(() => {
-    if (!browser) return
-    observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          if (!isInitialized) init()
-        } else {
-          if (isInitialized) kill()
-        }
-      })
-    }, {
-      rootMargin: "100px 0px" 
-    })
+    if (!browser) return;
+    observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            if (!isInitialized) init();
+          } else {
+            if (isInitialized) kill();
+          }
+        });
+      },
+      { rootMargin: "100px 0px" }
+    );
 
-    if (stickyWrapper) observer.observe(stickyWrapper)
-
-    window.addEventListener("resize", onResize)
+    if (stickyWrapper) observer.observe(stickyWrapper);
+    window.addEventListener("resize", onResize);
 
     return () => {
-      window.removeEventListener("resize", onResize)
-      if (observer) observer.disconnect()
-      kill() 
-    }
-  })
+      window.removeEventListener("resize", onResize);
+      if (observer) observer.disconnect();
+      kill();
+    };
+  });
 
   $: if (browser && isInitialized && (foregroundSrc || backgroundSrc)) {
-    updateTextures()
+    updateTextures();
   }
 </script>
 
@@ -273,7 +389,7 @@
     -webkit-touch-callout: none;
     -webkit-font-smoothing: antialiased;
   }
-  
+
   * {
     margin: 0;
     padding: 0;
@@ -289,7 +405,7 @@
   .stickyWrapper {
     position: relative;
     width: 100%;
-    min-height: 100vh; 
+    min-height: 100vh;
   }
 
   .stickyInner {
