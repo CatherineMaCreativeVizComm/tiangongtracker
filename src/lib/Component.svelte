@@ -8,22 +8,20 @@
 
   const browser = typeof window !== "undefined";
 
-  export let foregroundSrc = "https://multimedia.scmp.com/components/2026/lantern-wc/foregroundImg.png";
+  export let foregroundSrc = "foregroundImg.png";
   export let backgroundSrc = [
-	  'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/1.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/2.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/3.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/4.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/5.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/6.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/7.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/8.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/9.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/10.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/11.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/12.png',
-    'https://multimedia.scmp.com/components/2026/kaileidoscope-wc/13.png'
+    'static/1.png', 'static/2.png', 'static/3.png', 'static/4.png',
+    'static/5.png', 'static/6.png', 'static/7.png', 'static/8.png',
+    'static/9.png', 'static/10.png', 'static/11.png', 'static/12.png',
+    'static/13.png'
   ];
+  export let textSrc = [
+    "Text for Image 1", "Text for Image 2", "Text for Image 3", "Text for Image 4",
+    "Text for Image 5", "Text for Image 6", "Text for Image 7", "Text for Image 8",
+    "Text for Image 9", "Text for Image 10", "Text for Image 11", "Text for Image 12",
+    "Text for Image 13"
+  ];
+  
   export let scrollspeed = 1;
   export let screenHeight = 1200;
 
@@ -34,31 +32,35 @@
   let isInitialized = false;
   let observer;
 
+  // State
+  let userScrolled = false;
+  let autoRotationAngle = 0; 
+  let activeIndex = 0; 
+  let isClockMode = false;
+  let textVisible = true; // Control text visibility during transitions
+
   let prevForegroundSrc = foregroundSrc;
   let prevBackgroundSrc = backgroundSrc;
   const scrollProgress = { value: 0 };
 
-  const parseBackgroundImages = (input) => {
+  const parseInput = (input, maxLen = 13) => {
     if (!input) return [];
-    let urls = [];
+    let items = [];
     if (Array.isArray(input)) {
-      urls = input;
+      items = input;
     } else if (typeof input === "string") {
       try {
         const parsed = JSON.parse(input);
-        if (Array.isArray(parsed)) urls = parsed;
-        else urls = [input];
+        if (Array.isArray(parsed)) items = parsed;
+        else items = [input];
       } catch (e) {
-        urls = input
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
+        items = input.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
       }
     }
-    if (urls.length === 0) return [];
+    if (items.length === 0) return [];
     const result = [];
-    for (let i = 0; i < 13; i++) {
-      result.push(urls[i % urls.length]);
+    for (let i = 0; i < maxLen; i++) {
+      result.push(items[i % items.length]);
     }
     return result;
   };
@@ -86,8 +88,7 @@
     loader.setCrossOrigin("anonymous");
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x220500);
-    scene.fog = new THREE.FogExp2(0x220500, 0.02);
+    scene.background = null; 
 
     const width = canvasContainer.clientWidth;
     const height = canvasContainer.clientHeight || 1;
@@ -107,19 +108,22 @@
     bgGroup = new THREE.Group();
     scene.add(bgGroup);
 
-    const totalCount = 13;
-    const finalCount = 12;
-    const radius = 9;
-    const panelWidth = 2 * radius * Math.sin(Math.PI / totalCount) * 1.02;
-    const panelHeight = 7;
+    const bgUrls = parseInput(backgroundSrc);
+    const totalCount = bgUrls.length; // Should be 13
+    const clockCount = 12; // We only arrange the first 12 in the circle
 
-    const bgUrls = parseBackgroundImages(backgroundSrc);
+    // Geometry calculations
+    const radius = 9;
+    const panelHeight = 7;
+    const panelWidth = 2 * radius * Math.sin(Math.PI / totalCount) * 1.02;
+
+    const clockRadius = 22; 
 
     for (let i = 0; i < totalCount; i++) {
       const url = bgUrls[i];
       const tex = loadTexture(url, true);
       const geo = new THREE.PlaneGeometry(panelWidth, panelHeight);
-
+      
       const mat = new THREE.MeshBasicMaterial({
         map: tex,
         side: THREE.DoubleSide,
@@ -128,8 +132,24 @@
         color: 0xffffff,
       });
       const mesh = new THREE.Mesh(geo, mat);
+      
+      // -- Cylinder Calculation (All 13) --
       const angleStart = (i / totalCount) * Math.PI * 2;
-      const angleEnd = (i / finalCount) * Math.PI * 2;
+
+      // -- Clock Calculation (First 12 only) --
+      // 12 o'clock start (PI/2), clockwise (-angle)
+      // Evenly distribute 12 items
+      let clockAngle = 0;
+      let clockX = 0; 
+      let clockY = 0;
+      let isClockVisible = false;
+
+      if (i < clockCount) {
+          clockAngle = (Math.PI / 2) - ((i / clockCount) * Math.PI * 2);
+          clockX = Math.cos(clockAngle) * clockRadius;
+          clockY = Math.sin(clockAngle) * clockRadius;
+          isClockVisible = true;
+      }
 
       mesh.position.x = Math.sin(angleStart) * radius;
       mesh.position.z = Math.cos(angleStart) * radius;
@@ -137,9 +157,14 @@
 
       mesh.userData = {
         id: i,
-        angleStart: angleStart,
-        angleEnd: angleEnd,
-        radius: radius,
+        // Cylinder data
+        cylAngle: angleStart,
+        cylRadius: radius,
+        // Clock data
+        clockX: clockX,
+        clockY: clockY,
+        isClockVisible: isClockVisible,
+        
         initialY: mesh.position.y,
         bobSpeed: 1 + Math.random() * 1.5,
         bobOffset: Math.random() * Math.PI * 2,
@@ -170,54 +195,168 @@
     scene.add(new THREE.AmbientLight(0xffaa33, 0.8));
 
     const clock = new THREE.Clock();
+    
     const animate = () => {
       animationId = requestAnimationFrame(animate);
       const time = clock.getElapsedTime();
 
-      let transition = 0;
-      const startT = 0.3;
-      const endT = 0.8;
+      // --- TIMELINE PHASES ---
+      // 0.0 -> 0.50 : Lantern Spin
+      // 0.50 -> 0.60 : Unfold Transition
+      // 0.60 -> 1.00 : Clock Highlight Cycle
+      const unfoldStart = 0.50;
+      const highlightStart = 0.60;
+      
+      let spinPhaseProgress = 0;   // 0->1
+      let transitionFactor = 0;    // 0->1 (Cylinder -> Clock)
+      let highlightProgress = 0;   // 0->1 (Cycle through 12 items)
 
-      if (scrollProgress.value > startT) {
-        transition = (scrollProgress.value - startT) / (endT - startT);
-        if (transition > 1) transition = 1;
+      // STATE MACHINE
+      if (scrollProgress.value < unfoldStart) {
+          // PHASE 1: SPIN
+          isClockMode = false;
+          textVisible = true;
+          spinPhaseProgress = scrollProgress.value / unfoldStart;
+          transitionFactor = 0;
+          highlightProgress = 0;
+      } else if (scrollProgress.value < highlightStart) {
+          // PHASE 2: UNFOLD TRANSITION
+          isClockMode = true;
+          textVisible = false; // Hide text during messy movement
+          spinPhaseProgress = 1;
+          // Normalize 0->1 over the 0.1 gap
+          transitionFactor = (scrollProgress.value - unfoldStart) / (highlightStart - unfoldStart);
+          // Ease smooth
+          transitionFactor = transitionFactor * transitionFactor * (3 - 2 * transitionFactor);
+          highlightProgress = 0;
+      } else {
+          // PHASE 3: HIGHLIGHT CYCLE
+          isClockMode = true;
+          textVisible = true;
+          spinPhaseProgress = 1;
+          transitionFactor = 1;
+          // Normalize rest of scroll
+          highlightProgress = (scrollProgress.value - highlightStart) / (1.0 - highlightStart);
       }
 
-      const smoothT = transition * transition * (3 - 2 * transition);
+      // 1. ROTATION (Only relevant for Cylinder phase)
+      let currentRotationY = 0;
+      if (!userScrolled) {
+         currentRotationY = time * 0.2 * Number(scrollspeed);
+         autoRotationAngle = currentRotationY;
+      } else {
+         const totalRotation = Math.PI * 2; 
+         const scrollRot = -(spinPhaseProgress * totalRotation);
+         currentRotationY = autoRotationAngle + scrollRot;
+      }
 
-      camera.position.y = 0 + 40 * smoothT;
-      camera.position.z = 35 - 34.9 * smoothT;
+      // 2. CAMERA ZOOM
+      const startZ = 35;
+      const endZ = 65; 
+      camera.position.z = startZ + (endZ - startZ) * transitionFactor;
       camera.lookAt(0, 0, 0);
 
+      // 3. INDEX CALCULATIONS
+      let clockActiveIndex = -1;
+      
+      if (isClockMode && transitionFactor >= 1) {
+          // Map 0-1 highlightProgress to 0-11 indices
+          // Math.floor(progress * total)
+          const rawIdx = Math.floor(highlightProgress * clockCount);
+          clockActiveIndex = Math.min(rawIdx, clockCount - 1);
+          // Safety clamp
+          if (clockActiveIndex < 0) clockActiveIndex = 0;
+          
+          activeIndex = clockActiveIndex; // Sync for text
+      } else if (!isClockMode) {
+          // Cylinder logic
+          let normalizedRot = (-currentRotationY) % (Math.PI * 2);
+          if (normalizedRot < 0) normalizedRot += Math.PI * 2;
+          const anglePerPanel = (Math.PI * 2) / totalCount;
+          let rawIndex = Math.round(normalizedRot / anglePerPanel);
+          activeIndex = rawIndex % totalCount;
+      } else {
+          // During transition
+          activeIndex = -1;
+      }
+
+      // 4. MESH UPDATE LOOP
       if (bgGroup) {
-        bgGroup.children.forEach((child, index) => {
+        // Group rotation fades out to 0 in clock mode
+        bgGroup.rotation.y = currentRotationY * (1 - transitionFactor);
+
+        bgGroup.children.forEach((child) => {
           const u = child.userData;
+          const bobY = Math.sin(time * u.bobSpeed + u.bobOffset) * u.bobAmp;
 
-          if (index === 12) {
-            child.visible = smoothT < 0.9;
-            if (child.material) child.material.opacity = 1 - smoothT;
+          // -- Position Interpolation --
+          const cylX = Math.sin(u.cylAngle) * u.cylRadius;
+          const cylZ = Math.cos(u.cylAngle) * u.cylRadius;
+          const cylRotY = u.cylAngle;
+          const cylY = u.initialY + bobY;
+
+          const clockX = u.clockX;
+          const clockY = u.clockY + bobY;
+          const clockZ = 0; 
+          const clockRotY = 0;
+
+          child.position.x = cylX * (1 - transitionFactor) + clockX * transitionFactor;
+          child.position.y = cylY * (1 - transitionFactor) + clockY * transitionFactor;
+          child.position.z = cylZ * (1 - transitionFactor) + clockZ * transitionFactor;
+          child.rotation.y = cylRotY * (1 - transitionFactor) + clockRotY * transitionFactor;
+
+          // -- Visibility / Highlight Logic --
+          if (transitionFactor > 0.9) {
+              // We are effectively in Clock Mode
+              if (!u.isClockVisible) {
+                  // Hide the 13th image
+                  child.visible = false;
+              } else {
+                  child.visible = true;
+                  
+                  // HIGHLIGHT LOGIC
+                  // If we are in Phase 3 (Highlight Phase)
+                  if (highlightProgress > 0) {
+                      const isActive = (u.id === clockActiveIndex);
+                      
+                      // Target values
+                      const targetScale = isActive ? 1.3 : 0.85;
+                      const targetOpacity = isActive ? 1.0 : 0.3;
+                      
+                      // Lerp visual properties for smoothness
+                      // Note: Standard lerp in loop is frame-dependent, usually ok for visual polish
+                      const lerpSpeed = 0.1;
+                      child.scale.setScalar(
+                          child.scale.x + (targetScale - child.scale.x) * lerpSpeed
+                      );
+                      child.material.opacity += (targetOpacity - child.material.opacity) * lerpSpeed;
+                      
+                      // Ensure active is drawn on top
+                      child.renderOrder = isActive ? 10 : 5;
+                  } else {
+                      // Just unfolded, no highlight yet (waiting for scroll)
+                      // Reset to defaults
+                      child.scale.setScalar(1);
+                      child.material.opacity = 1;
+                      child.renderOrder = 5;
+                  }
+              }
           } else {
-            const currentAngle = u.angleStart * (1 - smoothT) + u.angleEnd * smoothT;
-            child.position.x = Math.sin(currentAngle) * u.radius;
-            child.position.z = Math.cos(currentAngle) * u.radius;
-            child.rotation.y = currentAngle * (1 - smoothT);
-            child.rotation.x = (-Math.PI / 2) * smoothT;
+              // Cylinder Mode
+              child.visible = true;
+              child.scale.setScalar(1);
+              child.material.opacity = 1;
+              child.renderOrder = 0;
           }
-
-          child.position.y =
-            u.initialY + Math.sin(time * u.bobSpeed + u.bobOffset) * u.bobAmp;
         });
       }
 
-      if (candleLight) candleLight.intensity = 100 + Math.sin(time * 15) * 20;
-
-      const speedMult = 1 - 0.5 * smoothT;
-      const autoRot = -time * (Number(scrollspeed) * 0.1) * speedMult;
-      const scrollRot = -scrollProgress.value * (Math.PI * 2);
-
-      if (bgGroup) bgGroup.rotation.y = autoRot * 1.5 + scrollRot * 1.5;
-      if (fgMesh) fgMesh.rotation.y = autoRot * 0.8 + scrollRot * 0.8;
-
+      // 5. FOREGROUND FADE
+      if (fgMesh) {
+         fgMesh.rotation.y = currentRotationY * 0.8;
+         if (fgMesh.material) fgMesh.material.opacity = 0.95 * (1 - transitionFactor);
+      }
+      
       renderer.render(scene, camera);
     };
     animate();
@@ -226,20 +365,13 @@
     ctx = gsap.context(() => {
       let h = Number(screenHeight);
       if (window.innerWidth < 768) h = h * 0.8;
-      if (stickyWrapper) stickyWrapper.style.height = `${h * 4}px`;
-
-      if (candleOverlay) {
-        gsap.to(candleOverlay, {
-          opacity: 0.9,
-          duration: 0.2,
-          repeat: -1,
-          yoyo: true,
-          ease: "rough({ strength: 1, points: 20, randomize: true })",
-        });
-      }
+      
+      // Tweak scroll height: Lantern(0.5) + Unfold(0.1) + HighlightCycle(0.4)
+      // Cycle needs length to feel controllable
+      if (stickyWrapper) stickyWrapper.style.height = `${h * (totalCount * 0.8)}px`;
 
       gsap.to(scrollProgress, {
-        value: 1,
+        value: 1, 
         ease: "none",
         scrollTrigger: {
           trigger: stickyWrapper,
@@ -247,7 +379,11 @@
           end: "bottom bottom",
           pin: stickyInner,
           scrub: 0.5,
-          invalidateOnRefresh: true,
+          onUpdate: (self) => {
+            if (!userScrolled && self.progress > 0.01) {
+              userScrolled = true;
+            }
+          }
         },
       });
     }, stickyWrapper);
@@ -262,16 +398,14 @@
       ctx.revert();
       ctx = null;
     }
-
     if (bgGroup) {
-      while (bgGroup.children.length > 0) {
-        const child = bgGroup.children[0];
-        bgGroup.remove(child);
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) child.material.dispose();
-      }
+        while (bgGroup.children.length > 0) {
+            const child = bgGroup.children[0];
+            bgGroup.remove(child);
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        }
     }
-
     if (fgMesh) {
       fgMesh.geometry.dispose();
       fgMesh.material.dispose();
@@ -280,14 +414,6 @@
       renderer.dispose();
       if (canvasContainer) canvasContainer.innerHTML = "";
     }
-
-    scene = null;
-    camera = null;
-    renderer = null;
-    bgGroup = null;
-    fgMesh = null;
-    candleLight = null;
-    loader = null;
     isInitialized = false;
   };
 
@@ -302,30 +428,7 @@
   };
 
   const updateTextures = () => {
-    if (!isInitialized || !loader || !bgGroup || !fgMesh) return;
-
-    if (
-      foregroundSrc &&
-      foregroundSrc !== prevForegroundSrc &&
-      fgMesh.material
-    ) {
-      fgMesh.material.map = loadTexture(foregroundSrc, false);
-      fgMesh.material.needsUpdate = true;
-      prevForegroundSrc = foregroundSrc;
-    }
-
-    if (
-      backgroundSrc &&
-      JSON.stringify(backgroundSrc) !== JSON.stringify(prevBackgroundSrc)
-    ) {
-      const bgUrls = parseBackgroundImages(backgroundSrc);
-      bgGroup.children.forEach((child, i) => {
-        const url = bgUrls[i % bgUrls.length];
-        child.material.map = loadTexture(url, true);
-        child.material.needsUpdate = true;
-      });
-      prevBackgroundSrc = backgroundSrc;
-    }
+      if (!isInitialized) return;
   };
 
   onMount(() => {
@@ -352,22 +455,31 @@
       kill();
     };
   });
-
-  $: if (browser && isInitialized && (foregroundSrc || backgroundSrc)) {
-    updateTextures();
-  }
+  
+  $: parsedTextData = parseInput(textSrc, 13);
 </script>
 
 <section class="revolvingLatternCtn">
   <div class="revolvingLattern">
     <div class="stickyWrapper" bind:this={stickyWrapper}>
       <div class="stickyInner" bind:this={stickyInner}>
+        
         <div class="stickyBackground">
           <div class="canvasContainer" bind:this={canvasContainer}></div>
         </div>
+        
+        <div class="foregroundTextContainer">
+            {#each parsedTextData as text, i}
+                <div class="textBox {i === activeIndex && textVisible ? 'active' : ''}">
+                    <p>{text}</p>
+                </div>
+            {/each}
+        </div>
+
         <div class="stickyForeground">
           <div class="candleOverlay" bind:this={candleOverlay}></div>
         </div>
+
       </div>
     </div>
   </div>
@@ -380,21 +492,7 @@
     position: relative;
   }
 
-  :global(body) {
-    overflow-x: hidden;
-    min-width: 290px;
-    width: 100%;
-    height: 100%;
-    -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
   .revolvingLattern {
     width: 100%;
@@ -405,7 +503,6 @@
   .stickyWrapper {
     position: relative;
     width: 100%;
-    min-height: 100vh;
   }
 
   .stickyInner {
@@ -422,11 +519,51 @@
     left: 0;
     width: 100%;
     height: 100%;
+    pointer-events: none;
   }
+
+  .stickyBackground { z-index: 5; }
+  .stickyForeground { z-index: 10; }
 
   .canvasContainer {
     width: 100%;
     height: 100%;
+  }
+
+  .foregroundTextContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 20; 
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+  }
+
+  .textBox {
+      position: absolute;
+      width: 60%;
+      max-width: 600px;
+      text-align: center;
+      color: #ffaa33;
+      font-family: serif; 
+      font-size: 2rem;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      background: rgba(0,0,0,0.6); 
+      padding: 20px;
+      border-radius: 10px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      pointer-events: auto;
+  }
+
+  .textBox.active {
+      opacity: 1;
+      transform: translateY(0);
   }
 
   .candleOverlay {
@@ -436,7 +573,6 @@
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 10;
     background: radial-gradient(
       circle at center,
       rgba(255, 200, 100, 0.1) 10%,
