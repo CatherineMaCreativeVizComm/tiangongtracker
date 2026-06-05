@@ -1,1086 +1,854 @@
-<svelte:options customElement={{ tag: "lantern-wc", shadow: "open" }} />
+<svelte:options customElement={{ tag: "spacestation-wgc", shadow: "open" }} />
 
 <script>
   import { onMount } from "svelte";
   import * as THREE from "three";
-  import { gsap } from "gsap";
-  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+  import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 
-  const browser = typeof window !== "undefined";
+  // --- HTML DOM Bindings ---
+  let canvasEl;
+  let dragZoneEl; 
 
-  export let foregroundSrc =
-    "https://multimedia.scmp.com/components/2026/lantern-wc/lanternCover.png";
-  export let lanternOuterSrc =
-    "https://multimedia.scmp.com/components/2026/lantern-wc/zodiac1.png";
-  export let innerImageSrc =
-    "https://multimedia.scmp.com/components/2026/lantern-wc/zodiac2.png";
-  export let clockBackgroundSrc =
-    "https://multimedia.scmp.com/components/2026/lantern-wc/clockBg.png";
+  // --- Loading UI Performance State ---
+  let isLoading = true;
+  let loadingProgress = 0;
 
-  export let backgroundSrc = [
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/1.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/2.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/3.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/4.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/5.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/6.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/7.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/8.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/9.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/10.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/11.png",
-    "https://multimedia.scmp.com/components/2026/kaileidoscope-wc/12.png",
-  ];
-
-  export let textSrc = [
-    {
-      head: "Year of the Mouse",
-      body: "The Cat and the Rat convinced the kind and honest Ox to carry them across the river. However, the Rat, overcome with its desire to win the race, pushed the Cat into the water before they reached the other side.",
-    },
-    {
-      head: "Year of the Ox",
-      body: "When the Ox arrived at the other side, the Rat leapt ahead to present itself to the Jade Emperor. It claimed first place, leaving the Ox behind in second.",
-    },
-    {
-      head: "Year of the Tiger",
-      body: "The mighty Tiger followed closely behind, securing third place.",
-    },
-    {
-      head: "Year of the Rabbit",
-      body: "The Rabbit cleverly hopped across stepping stones and a floating log to come in fourth.",
-    },
-    {
-      head: "Year of the Dragon",
-      body: "The Dragon, despite its ability to fly, arrived fifth, because it had stopped to perform a rain ceremony for some villagers who were experiencing a drought.",
-    },
-    {
-      head: "Year of the Snake",
-      body: "The cunning Snake hid itself in one of the Horse’s hooves. As the Horse reached the finish line, the Snake leapt out, overtaking the startled horse to secure sixth place. The Horse had to settle for seventh.",
-    },
-    {
-      head: "Year of the Horse",
-      body: "The horse and the snake were originally close to each other, but the horse was startled by the snake, which affected its speed. Therefore, the horse came in seventh.",
-    },
-    {
-      head: "Year of the Sheep",
-      body: "The Sheep, Monkey and Rooster arrived in eighth, ninth and 10th place, respectively, by working together and crossing the river on a raft. The capable Rooster found the raft, while the gentle Sheep and the energetic Monkey worked to clear the weeds and battle through the currents.",
-    },
-    {
-      head: "Year of the Monkey",
-      body: "The Sheep, Monkey and Rooster arrived in eighth, ninth and 10th place, respectively, by working together and crossing the river on a raft. The capable Rooster found the raft, while the gentle Sheep and the energetic Monkey worked to clear the weeds and battle through the currents.",
-    },
-    {
-      head: "Year of the Rooster",
-      body: "The Sheep, Monkey and Rooster arrived in eighth, ninth and 10th place, respectively, by working together and crossing the river on a raft. The capable Rooster found the raft, while the gentle Sheep and the energetic Monkey worked to clear the weeds and battle through the currents.",
-    },
-    {
-      head: "Year of the Dog",
-      body: "The Dog, who loved to frolic in water, arrived 11th, having enjoyed a playful swim across the river.",
-    },
-    {
-      head: "Year of the Pig",
-      body: "The Pig, who had stopped to eat and take a nap during the race, arrived 12th.",
-    },
-    {
-      head: "The grudge",
-      body: "Arriving too late to claim a spot, the drenched Cat was excluded from the Chinese zodiac. Enraged by the Rat’s betrayal, the Cat swore an eternal blood feud, vowing to hunt down its enemy forever.",
-    },
-  ];
-
-  export let clockTextSrc = [
-    {
-      head: "11pm-1am | Hour of the Rat",
-      body: "When the world sleeps, the Rat stirs. It is said that each day is created here: the universe is a trapped, airless box until a single Rat bites a hole in the dark, releasing the energy of life. ",
-    },
-    {
-      head: "1am-3am | Hour of the Ox",
-      body: "The Rat cracks the sky open, but the world below remains wild and barren. The Ox rises to chew its cud, gathering the strength needed for its legendary burden: pulling the plough that turns the primeval chaos into fertile, living land.",
-    },
-    {
-      head: "3am-5am | Hour of the Tiger",
-      body: "While the Ox toils, the Tiger rules. This is not just the Tiger’s prime hunting time, but also its pre-dawn roar is said to scare away evil spirits, cementing its status as the king of beasts.",
-    },
-    {
-      head: "5am-7am | Hour of the Rabbit",
-      body: "Dawn breaks, but the moon – home of the legendary Jade Rabbit – lingers in the sky. The earthly rabbits emerge to feast on grass glistening with morning dew, bridging the gap between the fading night and the rising sun.",
-    },
-    {
-      head: "7am-9am | Hour of the Dragon",
-      body: "As the sun climbs and the morning mist rises, the Dragon takes flight. It soars through the clouds to deliver rain to the earth, creating a surge of yang energy for the new day and ensuring a prosperous harvest for the year ahead.",
-    },
-    {
-      head: "9am-11am | Hour of the Snake",
-      body: "The sun burns through the mist. The cold-blooded Snake leaves its dark burrow to bask and feed to fuel its energy. The day is at its brightest and clearest, yet the Snake remains a master of hiding in plain sight.",
-    },
-    {
-      head: "11am-1pm | Hour of the Horse",
-      body: "The sun is at its zenith, the absolute peak of yang fire – yet, this is also the precise moment when yin energy is born. The Horse gallops across the plains to catch the emerging yin, balancing the universe’s energy.",
-    },
-    {
-      head: "1pm-3pm | Hour of the Sheep",
-      body: "The sun softens, and farmers release their herds of Sheep. The Sheep feed with a unique grace – grazing now leaves the grass’ roots unharmed, allowing the earth to heal and the grass to thrive again.",
-    },
-    {
-      head: "3pm-5pm | Hour of the Monkey",
-      body: "The sun dips west, and the forest echoes. The Monkey becomes vocal, signalling the day’s end. It extends its limbs to swing across the canopy, bridging the gap between the high sun and the coming dusk.",
-    },
-    {
-      head: "5pm-7pm | Hour of the Rooster",
-      body: "The sun kisses the horizon. Before total darkness falls, Roosters instinctively circle their coops, lingering at the entrance. This signals the completion of the workday, marking the precise transition from the activity of the day to the stillness of the night.",
-    },
-    {
-      head: "7pm-9pm | Hour of the Dog",
-      body: "Daylight fades to black. As humans finish their labour and shut their doors for the night, the Dog’s responsibility begins. It stays awake, serving as a vigilant guardian, ready to challenge any disturbance in the silence.",
-    },
-    {
-      head: "9pm-11pm | Hour of the Pig",
-      body: "The cycle closes at the deepest point of the night, where the universe settles back into a state of primordial chaos. In this void, the Pig eats and rests, embodying the innocent, blissful pause before the Rat wakes up to restart time.",
-    },
-  ];
-
-  export let transitionText =
-    "In traditional Chinese timekeeping, the 24-hour day is divided into 12 two-hour periods known as shi chen (時辰). Each of these periods corresponds to one of the zodiac animals in a fixed sequence, beginning with the Hour of the Rat, which lasts from 11pm to 1am. This system harmonises human life with nature by linking specific times of the day to the biological clock and daily habits of each animal.";
-
-  export let screenHeight = 1200;
-
-  const dayColors = [
-    new THREE.Color("#1a1a2e"),
-    new THREE.Color("#4a5e6d"),
-    new THREE.Color("#536b6a"),
-    new THREE.Color("#8c5e35"),
-    new THREE.Color("#2e2e4a"),
-  ];
-
-  const loadTexture = (loader, url) => {
-    if (!loader || !url) return null;
-    const tex = loader.load(url);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
+  // --- DOM Reference Cache ---
+  let domCache = {
+    dots: {}, labels: {}, lines: {},
+    subDots: {}, subLabels: {}, subLines: {}
   };
 
-  const parseInput = (input, maxLen) => {
-    let items = [];
-    if (Array.isArray(input)) items = input;
-    else if (typeof input === "string") {
-      try {
-        items = JSON.parse(input);
-      } catch (e) {
-        items = input
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length);
-      }
-    }
-    if (!maxLen) return items;
-    const result = [];
-    for (let i = 0; i < maxLen; i++) {
-      result.push(items[i % items.length]);
-    }
-    return result;
-  };
+  // --- Three.js Infrastructure Instances ---
+  let scene, camera, renderer;
+  let modelContainer, masterModelRef;
+  let raycaster, pointer;
+  let animationFrameId;
+  const tempV3 = new THREE.Vector3();
 
-  class EnvironmentManager {
-    constructor(scene) {
-      this.scene = scene;
-      this.group = new THREE.Group();
-      this.scene.add(this.group);
-      this.init();
-    }
+  let containerWidth = 0;
+  let containerHeight = 0;
 
-    init() {
-      const skyGeo = new THREE.PlaneGeometry(600, 600);
-      this.skyMat = new THREE.MeshBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-      });
-      const skyMesh = new THREE.Mesh(skyGeo, this.skyMat);
-      skyMesh.position.z = -200;
-      this.group.add(skyMesh);
+  // --- Interaction & Animation State ---
+  let currentMode = "wandering"; 
+  let activeFocusId = null; 
+  let targetRotation = { x: 0, y: 0, z: 0 };
+  let isModelLoaded = false;
+  let isDragging = false;
+  let previousPointerPosition = { x: 0, y: 0 };
+  let wanderTime = 0;
+  let desiredScale = 1;
 
-      const canvas = document.createElement("canvas");
-      canvas.width = 512;
-      canvas.height = 512;
-      const ctx = canvas.getContext("2d");
-      const grad = ctx.createRadialGradient(256, 256, 20, 256, 256, 256);
-      grad.addColorStop(0, "rgba(255, 200, 120, 0.9)");
-      grad.addColorStop(0.4, "rgba(100, 50, 0, 0.7)");
-      grad.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 512, 512);
-      const groundTex = new THREE.CanvasTexture(canvas);
+  let baseDistance = 75;
+  let baseCameraY = 35;
+  let targetCameraDistance = baseDistance;
+  let cameraDistance = baseDistance;
+  let targetCameraY = baseCameraY;
+  let cameraY = baseCameraY;
 
-      this.groundMat = new THREE.MeshBasicMaterial({
-        map: groundTex,
-        transparent: true,
-        opacity: 1,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
-      const groundMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(80, 80),
-        this.groundMat,
-      );
-      groundMesh.rotation.x = -Math.PI / 2;
-      groundMesh.position.y = -8;
-      this.group.add(groundMesh);
+  const defaultMasterPos = new THREE.Vector3();
+  const targetMasterPosition = new THREE.Vector3();
 
-      this.wallMat = new THREE.MeshStandardMaterial({
-        color: 0x220a00,
-        roughness: 1.0,
-        metalness: 0.0,
-        side: THREE.FrontSide,
-        transparent: true,
-        opacity: 1,
-      });
-      const wallMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(400, 400),
-        this.wallMat,
-      );
-      wallMesh.position.z = -80;
-      this.group.add(wallMesh);
-    }
-
-    update(transitionFactor, highlightProgress) {
-      const envOpacity = Math.max(0, 1 - transitionFactor * 1.5);
-      this.groundMat.opacity = envOpacity;
-      this.wallMat.opacity = envOpacity;
-      this.skyMat.opacity = transitionFactor;
-      if (transitionFactor > 0.01) {
-        if (highlightProgress <= 0) {
-          this.skyMat.color.copy(dayColors[0]);
-        } else {
-          const count = dayColors.length - 1;
-          const progress = highlightProgress * count;
-          const idx = Math.floor(progress);
-          const alpha = progress - idx;
-          const c1 = dayColors[Math.min(idx, count)];
-          const c2 = dayColors[Math.min(idx + 1, count)];
-          this.skyMat.color.copy(c1).lerp(c2, alpha);
-        }
-      }
-    }
-
-    dispose() {
-      this.scene.remove(this.group);
-      if (this.skyMat) this.skyMat.dispose();
-      if (this.groundMat) this.groundMat.dispose();
-      if (this.wallMat) this.wallMat.dispose();
-    }
-  }
-
-  class LanternManager {
-    constructor(scene, loader, config) {
-      this.scene = scene;
-      this.loader = loader;
-      this.config = config;
-      this.group = new THREE.Group();
-      this.scene.add(this.group);
-      this.init();
-    }
-
-    createLayer(
-      radius,
-      imgUrl,
-      height,
-      opacity,
-      emIntensity,
-      thetaStart,
-      thetaLength,
-      depthWrite,
-      alphaTest,
-      side,
-      renderOrder,
-    ) {
-      const tex = loadTexture(this.loader, imgUrl);
-      if (tex) {
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.repeat.set(1, 1);
-      }
-      const geo = new THREE.CylinderGeometry(
-        radius,
-        radius,
-        height,
-        64,
-        1,
-        true,
-        thetaStart,
-        thetaLength,
-      );
-      const mat = new THREE.MeshStandardMaterial({
-        map: tex,
-        side: side,
-        transparent: true,
-        opacity: opacity,
-        depthWrite: depthWrite,
-        alphaTest: alphaTest,
-        emissive: 0xffaa00,
-        emissiveMap: tex,
-        emissiveIntensity: emIntensity,
-        roughness: 0.9,
-        metalness: 0.1,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.renderOrder = renderOrder;
-      return mesh;
-    }
-
-    init() {
-      const w = window.innerWidth;
-      const h = 14;
-
-      let config = {
-        radius: 12.5,
-        height: h,
-        fgRadius: 16,
-        fgHeight: 17,
-        strutPos: 16,
-      };
-      if (w < 768) {
-        config = {
-          radius: 7,
-          height: h * 0.7,
-          fgRadius: 8,
-          fgHeight: 15,
-          strutPos: 8,
-        };
-      } else if (w <= 1024) {
-        config = {
-          radius: 10.5,
-          height: h * 0.95,
-          fgRadius: 12.5,
-          fgHeight: 15.5,
-          strutPos: 12.5,
-        };
-      }
-
-      this.coreMesh = this.createLayer(
-        config.radius * 0.9,
-        this.config.innerSrc,
-        config.height * 0.85,
-        0.5,
-        2.0,
-        0,
-        Math.PI * 2,
-        false,
-        0,
-        THREE.DoubleSide,
-        0,
-      );
-      this.group.add(this.coreMesh);
-
-      const startRad = -20 * (Math.PI / 180);
-      const lengthRad = 330 * (Math.PI / 180);
-
-      this.outerMesh = this.createLayer(
-        config.radius,
-        this.config.outerSrc,
-        config.height,
-        1.0,
-        1.5,
-        startRad,
-        lengthRad,
-        false,
-        0.5,
-        THREE.FrontSide,
-        1,
-      );
-      this.group.add(this.outerMesh);
-
-      const tex = loadTexture(this.loader, this.config.frameSrc);
-      const fgGeo = new THREE.CylinderGeometry(
-        config.fgRadius,
-        config.fgRadius,
-        config.fgHeight,
-        6,
-        1,
-        false,
-      );
-      const fgSideMat = new THREE.MeshStandardMaterial({
-        map: tex,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.3,
-        emissive: 0xff5500,
-        emissiveIntensity: 0.5,
-        alphaTest: 0.05,
-        depthWrite: false,
-      });
-      const fgCapMat = new THREE.MeshStandardMaterial({
-        color: 0x2a0d00,
-        side: THREE.DoubleSide,
-        roughness: 0.9,
-        transparent: true,
-        opacity: 1,
-      });
-
-      this.frameMesh = new THREE.Mesh(fgGeo, [fgSideMat, fgCapMat, fgCapMat]);
-      this.frameMesh.renderOrder = 20;
-
-      const strutGeo = new THREE.CylinderGeometry(
-        0.15,
-        0.15,
-        config.fgHeight + 1,
-        8,
-      );
-      const strutMat = new THREE.MeshStandardMaterial({
-        color: 0x3d1c00,
-        transparent: true,
-        opacity: 1,
-      });
-      for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
-        const strut = new THREE.Mesh(strutGeo, strutMat);
-        strut.position.set(
-          Math.cos(angle + Math.PI / 6) * config.strutPos,
-          0,
-          Math.sin(angle + Math.PI / 6) * config.strutPos,
-        );
-        this.frameMesh.add(strut);
-      }
-      this.scene.add(this.frameMesh);
-    }
-
-    update(time, rotationY, fgRotationY, transitionFactor) {
-      const width = window.innerWidth;
-      const isMobile = width < 768;
-      const hAdj = isMobile ? 1 : 0;
-
-      const lanternOpacity = 1 - transitionFactor;
-      const envOpacity = Math.max(0, 1 - transitionFactor * 1.5);
-
-      this.group.visible = lanternOpacity > 0.01;
-      this.frameMesh.visible = envOpacity > 0.01;
-
-      if (this.group.visible) {
-        const expScale = 1 + transitionFactor * 0.5;
-        const floatY = Math.sin(time * 1.5) * 0.3;
-
-        this.outerMesh.rotation.y = rotationY;
-        this.outerMesh.position.y = hAdj + floatY;
-        this.outerMesh.scale.setScalar(expScale);
-        this.outerMesh.material.opacity = lanternOpacity;
-        this.outerMesh.material.emissiveIntensity = 2.5 * lanternOpacity;
-
-        this.coreMesh.rotation.y = rotationY * 0.45;
-        this.coreMesh.position.y = -hAdj + Math.sin(time * 0.8 + 10) * 0.25;
-        this.coreMesh.scale.setScalar(expScale);
-        this.coreMesh.material.opacity = lanternOpacity * 0.5;
-        this.coreMesh.material.emissiveIntensity = 3.5 * lanternOpacity;
-      }
-
-      if (this.frameMesh.visible) {
-        this.frameMesh.rotation.y = fgRotationY + Math.PI / 6;
-        const fgOp = 0.3 * envOpacity;
-        if (Array.isArray(this.frameMesh.material)) {
-          this.frameMesh.material.forEach((m) => {
-            if (m.transparent) m.opacity = fgOp;
-            if (m.emissive) m.emissiveIntensity = 0.5 * envOpacity;
-          });
-        }
-        this.frameMesh.children.forEach(
-          (c) => (c.material.opacity = 0.9 * envOpacity),
-        );
-      }
-    }
-
-    dispose() {
-      this.scene.remove(this.group);
-      this.scene.remove(this.frameMesh);
-    }
-  }
-
-  class ClockManager {
-    constructor(scene, loader, images, bgSrc) {
-      this.scene = scene;
-      this.loader = loader;
-      this.images = images;
-      this.bgSrc = bgSrc;
-      this.group = new THREE.Group();
-      this.group.visible = false;
-      this.scene.add(this.group);
-      this.init();
-    }
-
-    init() {
-      if (this.bgSrc) {
-        const tex = loadTexture(this.loader, this.bgSrc);
-        this.bgMesh = new THREE.Mesh(
-          new THREE.PlaneGeometry(1, 1),
-          new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-          }),
-        );
-        this.bgMesh.position.z = -1;
-        this.group.add(this.bgMesh);
-      }
-      const count = Math.min(this.images.length, 12);
-      for (let i = 0; i < count; i++) {
-        const container = new THREE.Group();
-        const tex = loadTexture(this.loader, this.images[i]);
-        const mesh = new THREE.Mesh(
-          new THREE.PlaneGeometry(1, 1),
-          new THREE.MeshBasicMaterial({
-            map: tex,
-            side: THREE.DoubleSide,
-            transparent: true,
-          }),
-        );
-        container.add(mesh);
-        container.userData = {
-          id: i,
-          angle: Math.PI / 2 - (i / 12) * Math.PI * 2,
-          startRot: (i / 12) * Math.PI * 2,
-          floatOffset: Math.random() * 10,
-        };
-        this.group.add(container);
-      }
-    }
-
-    update(time, rotationY, transitionFactor, highlightProgress, activeIndex) {
-      const w = window.innerWidth;
-      this.group.visible = transitionFactor > 0.01;
-      this.group.rotation.y = rotationY * (1 - transitionFactor);
-
-      if (!this.group.visible) return;
-
-      let config = { radius: 22, bgSize: 40, pHeight: 8 };
-      if (w < 768) {
-        config = { radius: 12, bgSize: 24, pHeight: 5 };
-      } else if (w <= 1024) {
-        config = { radius: 18, bgSize: 32, pHeight: 6 };
-      }
-
-      if (this.bgMesh) {
-        this.bgMesh.scale.set(config.bgSize, config.bgSize, 1);
-        this.bgMesh.material.opacity = transitionFactor;
-      }
-
-      const startRad = 13.5;
-      this.group.children.forEach((child) => {
-        if (child === this.bgMesh) return;
-        const u = child.userData;
-        const mesh = child.children[0];
-        const tx = Math.cos(u.angle) * config.radius;
-        const ty = Math.sin(u.angle) * config.radius;
-        const sx = Math.sin(u.startRot) * startRad;
-        const sz = Math.cos(u.startRot) * startRad;
-
-        child.position.set(
-          sx + (tx - sx) * transitionFactor,
-          ty * transitionFactor + Math.sin(time * 2 + u.floatOffset) * 0.2,
-          sz + (0.5 - sz) * transitionFactor,
-        );
-        child.rotation.y = u.startRot * (1 - transitionFactor);
-
-        let scale = 1;
-        let opacity = transitionFactor;
-        if (highlightProgress > 0) {
-          const isActive = u.id === activeIndex;
-          scale = isActive ? 1.2 : 0.8;
-          opacity = isActive ? 1.0 : 0.25;
-          child.renderOrder = isActive ? 10 : 5;
-        }
-
-        child.scale.setScalar(scale);
-        if (mesh.material.map?.image) {
-          const aspect =
-            mesh.material.map.image.width / mesh.material.map.image.height;
-          mesh.scale.set(config.pHeight * aspect, config.pHeight, 1);
-        }
-        mesh.material.opacity =
-          mesh.material.opacity + (opacity - mesh.material.opacity) * 0.1;
-      });
-    }
-
-    dispose() {
-      this.scene.remove(this.group);
-      this.group.children.forEach((c) => {
-        if (c.material) c.material.dispose();
-        if (c.children)
-          c.children.forEach((gc) => {
-            if (gc.material) gc.material.dispose();
-          });
-      });
-    }
-  }
-
-  let stickyWrapper, stickyInner, canvasContainer, candleOverlay;
-  let scene, camera, renderer, candleLight, loader;
-
-  let envManager, lanternManager, clockManager;
-
-  let animationId;
-  let ctx;
-  let isInitialized = false;
-  let observer;
-
-  let userScrolled = false;
-  let activeIndex = 0;
-  let isClockMode = false;
-  let textVisible = false;
-  let showTransitionText = false;
-
-  let cameraZStart = 40;
-  let cameraZEnd = 65;
-
-  const scrollProgress = { value: 0 };
-
-  $: parsedLanternTexts = parseInput(textSrc, 13);
-  $: parsedClockTexts = parseInput(clockTextSrc, 12);
-  $: currentTextList = isClockMode ? parsedClockTexts : parsedLanternTexts;
-  $: parsedBackgrounds = parseInput(backgroundSrc, 13);
-
-  const init = () => {
-    if (isInitialized || !canvasContainer) return;
-
-    loader = new THREE.TextureLoader();
-    loader.setCrossOrigin("anonymous");
-
-    scene = new THREE.Scene();
-
-    const width = canvasContainer.clientWidth;
-    const height = canvasContainer.clientHeight || 1;
-    camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 500);
-    camera.position.set(0, 0, 40);
-    camera.lookAt(0, 0, 0);
-
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(width, height);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    canvasContainer.innerHTML = "";
-    canvasContainer.appendChild(renderer.domElement);
-
-    envManager = new EnvironmentManager(scene);
-
-    lanternManager = new LanternManager(scene, loader, {
-      outerSrc: lanternOuterSrc,
-      innerSrc: innerImageSrc,
-      frameSrc: foregroundSrc,
-    });
-
-    clockManager = new ClockManager(
-      scene,
-      loader,
-      parsedBackgrounds,
-      clockBackgroundSrc,
-    );
-
-    candleLight = new THREE.PointLight(0xff9933, 1200, 300);
-    scene.add(candleLight);
-    scene.add(new THREE.AmbientLight(0xff6600, 0.3));
-
-    onResize();
-    animate();
-    setupScrollTrigger();
-
-    isInitialized = true;
-  };
-
-  const setupScrollTrigger = () => {
-    gsap.registerPlugin(ScrollTrigger);
-    ctx = gsap.context(() => {
-      let h = Number(screenHeight);
-      const isMobile = window.innerWidth < 768;
-      if (isMobile) h = h * 0.7;
-      if (stickyWrapper) stickyWrapper.style.height = `${h * 25}px`;
-
-      gsap.to(scrollProgress, {
-        value: 1,
-        ease: "none",
-        scrollTrigger: {
-          trigger: stickyWrapper,
-          start: "top top",
-          end: "bottom bottom",
-          pin: stickyInner,
-          scrub: 0.1,
-          onUpdate: (self) => {
-            if (!userScrolled && self.progress > 0.005) {
-              userScrolled = true;
-            }
-          },
+  let labelsData = [
+    {
+      id: "tianhe",
+      name: "Tianhe Core Module",
+      x: 0, y: 0, dx: -220, dy: -140, rDx: -220, rDy: -140, visible: false,
+      offset: new THREE.Vector3(0, 0, 0),
+      clickable: true,
+      viewRotX: 0.4, viewRotY: 1.8, viewRotZ: 0.1, viewY: 30, viewDist: 30,
+      targetCollections: ["tianhe outter"],
+      subAnnotations: [
+        { id: "tianhe_docking", title: "Docking", type: "text", content: "Lorem ipsum...", offset: new THREE.Vector3(0, 0, -2.2), dx: -200, dy: -100, x: 0, y: 0, visible: false },
+        { id: "tianhe_flexible_solar", title: "Flexible solar arrays", type: "text", content: "Lorem ipsum...", offset: new THREE.Vector3(2, 0, -0.5), dx: 200, dy: -200, x: 0, y: 0, visible: false },
+        { id: "tianhe_robotic", title: "Robotic arms", type: "text", content: "Lorem ipsum...", offset: new THREE.Vector3(0, 0.5, 0.8), dx: 200, dy: -100, x: 0, y: 0, visible: false },
+{
+          id: "tianhe_living", title: "Astronaut habitats", type: "image",
+          content: "https://multimedia.scmp.com/infographics/news/china/article/3355504/tiangong_interactive/images/habitant.png",
+          offset: new THREE.Vector3(0, 0, -1.2), dx: -100, dy: 200, x: 0, y: 0, visible: false
         },
-      });
-    }, stickyWrapper);
-  };
+        {
+          id: "tianhe_treadmill", // OPTIMIZATION: Fixed duplicate ID conflict with tianhe_living
+          title: "Treadmill", type: "image",
+          content: "https://multimedia.scmp.com/infographics/news/china/article/3355504/tiangong_interactive/images/treadmill.png",
+          offset: new THREE.Vector3(-0.2, -0.1, -1.7), dx: -100, dy: -240, x: 0, y: 0, visible: false
+        }
+      ]
+    },
+    { id: "wentian", name: "Wentian Laboratory", x: 0, y: 0, dx: -260, dy: 60, rDx: -260, rDy: 60, visible: false, offset: new THREE.Vector3(-2, 0, 0.5), clickable: true, viewRotX: 0.4, viewRotY: -0.2, viewRotZ: 0, viewY: 26, viewDist: 26, targetCollections: ["wentian outter"], subAnnotations: [{ id: "wentian_solar", title: "Flexible Solar Arrays", type: "video", content: "https://...", offset: new THREE.Vector3(-3.5, 0, 0.5), dx: -200, dy: -140, x: 0, y: 0, visible: false }] },
+    { id: "mengtian", name: "Mengtian Laboratory", x: 0, y: 0, dx: 260, dy: -60, rDx: 260, rDy: -60, visible: false, offset: new THREE.Vector3(2, 0, 0.5), clickable: true, viewRotX: 0.4, viewRotY: -0.2, viewRotZ: 0.1, viewY: 26, viewDist: 26, targetCollections: ["mengtian outter"], subAnnotations: [{ id: "mengtian_airlock", title: "Payload Airlock", type: "text", content: "Deploys...", offset: new THREE.Vector3(3.2, 0, 0.5), dx: 200, dy: 100, x: 0, y: 0, visible: false }] },
+    { id: "shenzhou", name: "Shenzhou Spacecraft", x: 0, y: 0, dx: 220, dy: 140, rDx: 220, rDy: 140, visible: false, offset: new THREE.Vector3(0, 0, 2), clickable: false },
+    { id: "shenzhou_bottom", name: "Shenzhou Spacecraft", x: 0, y: 0, dx: -180, dy: 200, rDx: -180, rDy: 200, visible: false, offset: new THREE.Vector3(0, -2, 0) },
+    { id: "tianzhou", name: "Tianzhou Cargo Ship", x: 0, y: 0, dx: 220, dy: -160, rDx: 220, rDy: -160, visible: false, offset: new THREE.Vector3(0, 0, -3), clickable: false }
+  ];
 
-  const animate = () => {
-    animationId = requestAnimationFrame(animate);
-    const time = performance.now() / 1000;
-    const isMobile = window.innerWidth < 768;
+  $: focusedItem = labelsData.find(l => l.id === activeFocusId);
 
-    const spinEnd = 0.45;
-    const explodeEnd = 0.55;
-    const clockPauseEnd = 0.6;
-
-    let spinPhaseProgress = 0;
-    let transitionFactor = 0;
-    let highlightProgress = 0;
-    let currentRotationY = 0;
-    let foregroundRotationY = 0;
-    let localActiveIndex = -1;
-
-    const fullRotation = 290 * (Math.PI / 180);
-
-    if (!userScrolled) {
-      currentRotationY = -time * 0.4;
-      foregroundRotationY = 0;
-      isClockMode = false;
-      textVisible = false;
-      showTransitionText = false;
-      transitionFactor = 0;
-      activeIndex = -1;
-    } else {
-      if (scrollProgress.value < spinEnd) {
-        spinPhaseProgress = scrollProgress.value / spinEnd;
-        isClockMode = false;
-        textVisible = true;
-        showTransitionText = false;
-        transitionFactor = 0;
-        highlightProgress = 0;
-        currentRotationY = -(spinPhaseProgress * fullRotation);
-        foregroundRotationY = currentRotationY;
-        const totalTexts = parsedLanternTexts.length;
-        const raw = Math.floor(spinPhaseProgress * totalTexts);
-        localActiveIndex = Math.min(raw, totalTexts - 1);
-      } else if (scrollProgress.value < explodeEnd) {
-        isClockMode = false;
-        textVisible = false;
-        showTransitionText = true;
-        const p = (scrollProgress.value - spinEnd) / (explodeEnd - spinEnd);
-        transitionFactor = p * p * (3 - 2 * p);
-        currentRotationY = -fullRotation;
-        foregroundRotationY = -fullRotation;
-        localActiveIndex = -1;
-      } else if (scrollProgress.value < clockPauseEnd) {
-        isClockMode = true;
-        textVisible = false;
-        showTransitionText = false;
-        transitionFactor = 1;
-        currentRotationY = -fullRotation;
-        foregroundRotationY = -fullRotation;
-        localActiveIndex = -1;
-      } else {
-        isClockMode = true;
-        textVisible = true;
-        showTransitionText = false;
-        transitionFactor = 1;
-        const extraRot = (scrollProgress.value - clockPauseEnd) * 0.5;
-        currentRotationY = -fullRotation - extraRot;
-        foregroundRotationY = currentRotationY;
-
-        const dur = 1.0 - clockPauseEnd;
-        highlightProgress = (scrollProgress.value - clockPauseEnd) / dur;
-        const count = 12;
-        const raw = Math.floor(highlightProgress * count);
-        localActiveIndex = Math.min(raw, count - 1);
-        if (localActiveIndex < 0) localActiveIndex = 0;
+  function initDomCache() {
+    const root = canvasEl.parentElement;
+    labelsData.forEach(label => {
+      domCache.dots[label.id] = root.querySelector(`[data-dot-id="${label.id}"]`);
+      domCache.labels[label.id] = root.querySelector(`[data-label-id="${label.id}"]`);
+      domCache.lines[label.id] = root.querySelector(`[data-line-id="${label.id}"]`);
+      if (label.subAnnotations) {
+        label.subAnnotations.forEach(sub => {
+          domCache.subDots[sub.id] = root.querySelector(`[data-subdot-id="${sub.id}"]`);
+          domCache.subLabels[sub.id] = root.querySelector(`[data-sublabel-id="${sub.id}"]`);
+          domCache.subLines[sub.id] = root.querySelector(`[data-subline-id="${sub.id}"]`);
+        });
       }
-      activeIndex = localActiveIndex;
-    }
+    });
+  }
 
-    const currentZ =
-      cameraZStart + (cameraZEnd - cameraZStart) * transitionFactor;
-    camera.position.z = currentZ;
+  function initThree() {
+    scene = new THREE.Scene();
+    // scene.background = new THREE.Color(0x000000);
+
+    containerWidth = canvasEl.parentElement.clientWidth;
+    containerHeight = canvasEl.parentElement.clientHeight;
+
+    camera = new THREE.PerspectiveCamera(40, containerWidth / containerHeight, 1, 1000); 
+    const isMobile = window.innerWidth < 768;
+    baseDistance = isMobile ? 95 : 75;
+    baseCameraY = isMobile ? 45 : 35;
+    cameraDistance = baseDistance;
+    targetCameraDistance = baseDistance;
+    cameraY = baseCameraY;
+    targetCameraY = baseCameraY;
+
+    camera.position.set(0, cameraY, cameraDistance);
     camera.lookAt(0, 0, 0);
 
-    if (envManager) envManager.update(transitionFactor, highlightProgress);
-    if (lanternManager)
-      lanternManager.update(
-        time,
-        currentRotationY,
-        foregroundRotationY,
-        transitionFactor,
-        isMobile,
-      );
-    if (clockManager)
-      clockManager.update(
-        time,
-        currentRotationY,
-        transitionFactor,
-        highlightProgress,
-        activeIndex,
-        isMobile,
-      );
+    renderer = new THREE.WebGLRenderer({
+      canvas: canvasEl,
+      antialias: !isMobile,
+      alpha: true,
+      powerPreference: "high-performance"
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(containerWidth, containerHeight);
 
-    renderer.render(scene, camera);
-  };
+    const ambientLight = new THREE.AmbientLight(0xdbe9ff, 0.8); 
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xfff3e3, 5.0); 
+    directionalLight.position.set(30, 50, 60);
+    scene.add(directionalLight);
 
-  const kill = () => {
-    if (!isInitialized) return;
-    cancelAnimationFrame(animationId);
-    if (ctx) {
-      ctx.revert();
-      ctx = null;
-    }
+    modelContainer = new THREE.Group();
+    scene.add(modelContainer);
 
-    if (lanternManager) lanternManager.dispose();
-    if (clockManager) clockManager.dispose();
-    if (envManager) envManager.dispose();
+    raycaster = new THREE.Raycaster();
+    pointer = new THREE.Vector2();
+  }
 
-    if (renderer) {
-      renderer.dispose();
-      if (canvasContainer) canvasContainer.innerHTML = "";
-    }
-    isInitialized = false;
-  };
+  function loadModel() {
+    const originalUrl = "https://multimedia.scmp.com/infographics/news/china/article/3355504/tiangong_interactive/model/tiangong_model.glb";
+    const isDev = import.meta.env.DEV;
+    const modelUrl = isDev ? originalUrl.replace("https://multimedia.scmp.com", "/api/multimedia") : originalUrl;
 
-  let lastWidth = 0;
-  const onResize = () => {
-    if (isInitialized && camera && renderer) {
-      if (!canvasContainer) return;
-      const width = canvasContainer.clientWidth;
-      const height = canvasContainer.clientHeight;
+    const loader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
+    loader.setDRACOLoader(dracoLoader);
 
-      if (Math.abs(lastWidth - width) < 5 && window.innerWidth < 768) return;
-      lastWidth = width;
-
-      camera.aspect = width / height;
-
-      if (isMobile) {
-        cameraZStart = 85;
-        cameraZEnd = 130;
-        camera.fov = 50 * Math.max(1, height / width / 1.7);
-      } else {
-        cameraZStart = 40;
-        cameraZEnd = 70;
-        camera.fov = 50;
-      }
-
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    }
-  };
-
-  onMount(() => {
-    if (!browser) return;
-    observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            if (!isInitialized) init();
-          } else {
-            if (isInitialized) kill();
+    loader.load(
+      modelUrl,
+      (gltf) => {
+        masterModelRef = gltf.scene;
+        masterModelRef.traverse((child) => {
+          child.frustumCulled = true; 
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((mat) => {
+              child.userData.originalMaterial = child.material;
+              if (mat.transparent) {
+                mat.alphaTest = 0.1;
+                mat.depthWrite = true;
+              }
+            });
           }
         });
+
+        const box = new THREE.Box3().setFromObject(masterModelRef);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        desiredScale = 30 / maxDim;
+        masterModelRef.scale.set(desiredScale, desiredScale, desiredScale);
+
+        const scaledBox = new THREE.Box3().setFromObject(masterModelRef);
+        const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+        
+        defaultMasterPos.set(-scaledCenter.x, -scaledCenter.y, -scaledCenter.z);
+        targetMasterPosition.copy(defaultMasterPos);
+        masterModelRef.position.copy(defaultMasterPos);
+
+        labelsData.forEach((label) => {
+          const anchorObj = new THREE.Object3D();
+          anchorObj.position.copy(label.offset);
+          masterModelRef.add(anchorObj);
+          label.anchor = anchorObj;
+
+          if (label.subAnnotations) {
+            label.subAnnotations.forEach((sub) => {
+              const subAnchor = new THREE.Object3D();
+              subAnchor.position.copy(sub.offset);
+              masterModelRef.add(subAnchor);
+              sub.anchor = subAnchor;
+            });
+          }
+        });
+
+        modelContainer.add(masterModelRef);
+        isModelLoaded = true;
+        isLoading = false; 
+        dracoLoader.dispose();
       },
-      { rootMargin: "100px 0px" },
+      (xhr) => {
+        if (xhr.total > 0) {
+          loadingProgress = Math.round((xhr.loaded / xhr.total) * 100);
+        }
+      },
+      (error) => console.error("An error occurred while loading the model:", error)
     );
-    if (stickyWrapper) observer.observe(stickyWrapper);
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      if (observer) observer.disconnect();
-      kill();
-    };
+  }
+
+  function applyFocusVisualEffects(targetLabel) {
+    if (!masterModelRef) return;
+
+    masterModelRef.traverse((child) => {
+      if (child.isMesh && child.userData.originalMaterial) {
+        child.material = child.userData.originalMaterial;
+      }
+    });
+
+    if (!targetLabel || targetLabel.id !== "tianhe") return;
+
+    const hideTargets = targetLabel.targetCollections 
+      ? targetLabel.targetCollections.map(name => name.toLowerCase().replace(/[\s_]/g, "")) 
+      : [];
+    const highlightKeyword = targetLabel.id.toLowerCase().replace(/[\s_]/g, "");
+
+    masterModelRef.traverse((child) => {
+      if (child.isMesh && child.material) {
+        let belongsToHideTarget = false;
+        let belongsToHighlightTarget = false;
+        let currentElement = child;
+
+        while (currentElement) {
+          if (currentElement.name) {
+            const cleanName = currentElement.name.toLowerCase().replace(/[\s_]/g, "");
+            if (hideTargets.some(t => cleanName.includes(t))) belongsToHideTarget = true;
+            if (highlightKeyword && cleanName.includes(highlightKeyword)) belongsToHighlightTarget = true;
+          }
+          currentElement = currentElement.parent;
+        }
+
+        if (belongsToHideTarget || belongsToHighlightTarget) {
+          const isolateAndApply = (mat) => {
+            const clonedMat = mat.clone();
+            if (belongsToHideTarget) {
+              clonedMat.transparent = true;
+              clonedMat.opacity = 0.15; 
+              clonedMat.depthWrite = false;
+            }
+            if (belongsToHighlightTarget && clonedMat.emissive) {
+              clonedMat.emissive.setHex(0x42ffef); 
+            }
+            clonedMat.needsUpdate = true;
+            return clonedMat;
+          };
+
+          child.material = Array.isArray(child.material) 
+            ? child.material.map(isolateAndApply) 
+            : isolateAndApply(child.material);
+        }
+      }
+    });
+  }
+
+  function updateLabels() {
+    const isMobile = window.innerWidth < 768;
+    const hudScale = isMobile ? 0.55 : 1.0;
+
+    for (let i = 0; i < labelsData.length; i++) {
+      const label = labelsData[i];
+      if (!label.anchor) continue;
+
+      label.anchor.getWorldPosition(tempV3);
+      tempV3.project(camera);
+
+      const x = (tempV3.x * 0.5 + 0.5) * containerWidth;
+      const y = (-(tempV3.y * 0.5) + 0.5) * containerHeight;
+      const isVisible = tempV3.z <= 1 && (currentMode === "wandering" || currentMode === "manual");
+      const rDx = label.dx * hudScale;
+      const rDy = label.dy * hudScale;
+
+      const dotEl = domCache.dots[label.id];
+      const labelEl = domCache.labels[label.id];
+      const lineEl = domCache.lines[label.id];
+
+      if (isVisible) {
+        if (dotEl) {
+          dotEl.style.display = "block";
+          dotEl.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+        }
+        if (labelEl) {
+          labelEl.style.display = "block";
+          labelEl.style.transform = `translate3d(${x + rDx}px, ${y + rDy}px, 0) translate(-50%, -50%)`;
+        }
+        if (lineEl) {
+          lineEl.style.display = "block";
+          lineEl.setAttribute("x1", x);
+          lineEl.setAttribute("y1", y);
+          lineEl.setAttribute("x2", x + rDx);
+          lineEl.setAttribute("y2", y + rDy);
+        }
+      } else {
+        if (dotEl) dotEl.style.display = "none";
+        if (labelEl) labelEl.style.display = "none";
+        if (lineEl) lineEl.style.display = "none";
+      }
+
+      if (label.subAnnotations) {
+        const isCurrentFocused = currentMode === "focused" && activeFocusId === label.id;
+        
+        for (let j = 0; j < label.subAnnotations.length; j++) {
+          const sub = label.subAnnotations[j];
+          const subDotEl = domCache.subDots[sub.id];
+          const subLabelEl = domCache.subLabels[sub.id];
+          const subLineEl = domCache.subLines[sub.id];
+
+          if (isCurrentFocused && sub.anchor) {
+            sub.anchor.getWorldPosition(tempV3);
+            tempV3.project(camera);
+            
+            const sx = (tempV3.x * 0.5 + 0.5) * containerWidth;
+            const sy = (-(tempV3.y * 0.5) + 0.5) * containerHeight;
+            const srDx = sub.dx * hudScale;
+            const srDy = sub.dy * hudScale;
+            const sVisible = tempV3.z <= 1;
+
+            if (sVisible) {
+              if (subDotEl) {
+                subDotEl.style.display = "block";
+                subDotEl.style.transform = `translate3d(${sx}px, ${sy}px, 0) translate(-50%, -50%)`;
+              }
+              if (subLabelEl) {
+                subLabelEl.style.display = "block";
+                subLabelEl.style.transform = `translate3d(${sx + srDx}px, ${sy + srDy}px, 0) translate(-50%, -50%)`;
+              }
+              if (subLineEl) {
+                subLineEl.style.display = "block";
+                subLineEl.setAttribute("x1", sx);
+                subLineEl.setAttribute("y1", sy);
+                subLineEl.setAttribute("x2", sx + srDx);
+                subLineEl.setAttribute("y2", sy + srDy);
+              }
+            } else {
+              if (subDotEl) subDotEl.style.display = "none";
+              if (subLabelEl) subLabelEl.style.display = "none";
+              if (subLineEl) subLineEl.style.display = "none";
+            }
+          } else {
+            if (subDotEl) subDotEl.style.display = "none";
+            if (subLabelEl) subLabelEl.style.display = "none";
+            if (subLineEl) subLineEl.style.display = "none";
+          }
+        }
+      }
+    }
+  }
+
+  function animate() {
+    animationFrameId = requestAnimationFrame(animate);
+
+    if (isModelLoaded) {
+      if (!isDragging && (currentMode === "wandering" || currentMode === "manual")) {
+        wanderTime += 0.002; 
+        modelContainer.rotation.y += 0.001 + Math.sin(wanderTime * 0.5) * 0.0003;
+        modelContainer.rotation.x += Math.cos(wanderTime * 0.3) * 0.00008;
+        modelContainer.rotation.z += Math.sin(wanderTime * 0.2) * 0.00008;
+
+      } else if (currentMode === "focusing" || currentMode === "returning") {
+        const speed = 0.06;
+
+        modelContainer.rotation.x = THREE.MathUtils.lerp(modelContainer.rotation.x, targetRotation.x, speed);
+        modelContainer.rotation.y = THREE.MathUtils.lerp(modelContainer.rotation.y, targetRotation.y, speed);
+        modelContainer.rotation.z = THREE.MathUtils.lerp(modelContainer.rotation.z, targetRotation.z, speed);
+        
+        cameraY = THREE.MathUtils.lerp(cameraY, targetCameraY, speed);
+        cameraDistance = THREE.MathUtils.lerp(cameraDistance, targetCameraDistance, speed);
+        
+        camera.position.set(0, cameraY, cameraDistance);
+        camera.lookAt(0, 0, 0);
+        masterModelRef.position.lerp(targetMasterPosition, speed);
+
+        const rotDiff = Math.abs(modelContainer.rotation.y - targetRotation.y);
+        const distDiff = Math.abs(cameraDistance - targetCameraDistance);
+        if (rotDiff < 0.005 && distDiff < 0.05) {
+          currentMode = currentMode === "focusing" ? "focused" : "wandering";
+        }
+      } else {
+        masterModelRef.position.lerp(targetMasterPosition, 0.1);
+      }
+
+      updateLabels();
+    }
+    renderer.render(scene, camera);
+  }
+
+  // FIXED: Explicit function declarations to guarantee scope availability inside the template
+  function focusOnModule(labelId) {
+    const targetLabel = labelsData.find((l) => l.id === labelId);
+    if (!targetLabel || !isModelLoaded || !targetLabel.clickable) return;
+    
+    activeFocusId = labelId; 
+    targetMasterPosition.copy(targetLabel.offset).multiplyScalar(desiredScale).negate();
+
+    targetRotation.x = targetLabel.viewRotX;
+    targetRotation.y = targetLabel.viewRotY;
+    targetRotation.z = targetLabel.viewRotZ || 0;
+    
+    const isMobile = window.innerWidth < 768;
+    const mobileDistanceModifier = isMobile ? 1.8 : 1.0;
+
+    targetCameraY = (targetLabel.viewY || 18) * mobileDistanceModifier;
+    targetCameraDistance = (targetLabel.viewDist || 18) * mobileDistanceModifier;
+
+    applyFocusVisualEffects(targetLabel);
+    currentMode = "focusing";
+  }
+  // Expose to window fallback context if externally required outside shadow DOM bounds
+  window.focusOnModule = focusOnModule;
+
+  function triggerGoBack() {
+    activeFocusId = null; 
+    targetMasterPosition.copy(defaultMasterPos);
+    
+    const isMobile = window.innerWidth < 768;
+    targetCameraY = isMobile ? 45 : 30;
+    targetCameraDistance = isMobile ? 95 : 65;
+
+    applyFocusVisualEffects(null);
+    currentMode = "returning";
+  }
+
+  const onPointerDown = (event) => {
+    if (!isModelLoaded || currentMode === "focusing" || currentMode === "returning") return;
+
+    const rect = canvasEl.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / containerWidth) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / containerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(pointer, camera);
+
+    const intersects = raycaster.intersectObjects(modelContainer.children, true);
+    if (intersects.length > 0) {
+      if (currentMode === "wandering") currentMode = "manual";
+      isDragging = true;
+      previousPointerPosition = { x: event.clientX, y: event.clientY };
+    }
+  };
+
+  const onPointerMove = (event) => {
+    if (!isDragging) return;
+    const deltaX = event.clientX - previousPointerPosition.x;
+    const deltaY = event.clientY - previousPointerPosition.y;
+    modelContainer.rotation.y += deltaX * 0.005;
+    modelContainer.rotation.x += deltaY * 0.005;
+    previousPointerPosition = { x: event.clientX, y: event.clientY };
+  };
+
+  const onPointerUp = () => {
+    isDragging = false;
+    if (currentMode === "manual") currentMode = "wandering";
+  };
+
+  const handleResize = () => {
+    containerWidth = canvasEl.parentElement.clientWidth;
+    containerHeight = canvasEl.parentElement.clientHeight;
+
+    const isMobile = window.innerWidth < 768;
+    baseDistance = isMobile ? 95 : 65;
+    baseCameraY = isMobile ? 45 : 30;
+
+    if (currentMode === "wandering" || currentMode === "manual" || currentMode === "returning") {
+      targetCameraDistance = baseDistance;
+      targetCameraY = baseCameraY;
+    } else if (currentMode === "focused" && focusedItem) {
+      const mobileDistanceModifier = isMobile ? 1.8 : 1.0;
+      targetCameraY = (focusedItem.viewY || 18) * mobileDistanceModifier;
+      targetCameraDistance = (focusedItem.viewDist || 18) * mobileDistanceModifier;
+    }
+
+    camera.aspect = containerWidth / containerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(containerWidth, containerHeight);
+  };
+
+  function setupEventListeners() {
+    if (dragZoneEl) {
+      dragZoneEl.addEventListener("pointerdown", onPointerDown);
+    }
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("pointerup", onPointerUp, { passive: true });
+    window.addEventListener("resize", handleResize, { passive: true });
+  }
+
+  function cleanupThree() {
+    window.removeEventListener("resize", handleResize);
+    if (dragZoneEl) {
+      dragZoneEl.removeEventListener("pointerdown", onPointerDown);
+    }
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    cancelAnimationFrame(animationFrameId);
+    if (renderer) renderer.dispose();
+  }
+
+  onMount(() => {
+    initThree();
+    loadModel();
+    initDomCache(); 
+    setupEventListeners();
+    animate();
+
+    return cleanupThree;
   });
 </script>
 
-<section class="revolvingLatternCtn">
-  <div class="revolvingLattern">
-    <div class="stickyWrapper" bind:this={stickyWrapper}>
-      <div class="stickyInner" bind:this={stickyInner}>
-        <div class="stickyBackground">
-          <div class="canvasContainer" bind:this={canvasContainer}></div>
-        </div>
-
-        <div class="foregroundTextContainer">
-          {#each currentTextList as text, i}
-            <div
-              class="textBox {i === activeIndex && textVisible
-                ? 'active'
-                : ''} {isClockMode ? 'clockMode' : 'lanternMode'}"
-            >
-              <p class="head">{text.head}</p>
-              <p class="body">{text.body}</p>
-            </div>
-          {/each}
-
-          <div
-            class="transitionTextBox"
-            style="opacity: {showTransitionText ? 1 : 0}"
-          >
-            <p>{transitionText}</p>
-          </div>
-        </div>
-
-        <div class="stickyForeground">
-          <div class="candleOverlay" bind:this={candleOverlay}></div>
-        </div>
+<section class="modelCtn">
+  {#if isLoading}
+    <div class="loaderOverlay">
+      <div class="loaderSpinner"></div>
+      <div class="loaderText">Loading Tiangong Model {loadingProgress}%</div>
+      <div class="loaderBarContainer">
+        <div class="loaderBar" style="width: {loadingProgress}%"></div>
       </div>
     </div>
+  {/if}
+
+  <canvas class="model" bind:this={canvasEl}></canvas>
+
+  <div class="dragZone" bind:this={dragZoneEl}>
+    <div class="mobileHint">Swipe here to rotate space station</div>
   </div>
+
+  <svg class="hudOverlay">
+    {#each labelsData as label}
+      <line data-line-id={label.id} class="connectionLine" style="display: none;" />
+    {/each}
+
+    {#each labelsData as label}
+      {#if label.subAnnotations}
+        {#each label.subAnnotations as sub}
+          <line data-subline-id={sub.id} class="connectionLine focusLine" style="display: none;" />
+        {/each}
+      {/if}
+    {/each}
+  </svg>
+
+  {#each labelsData as label}
+    <div data-dot-id={label.id} class="indicatorDot" style="display: none;"></div>
+    <div data-label-id={label.id} class="spaceLabel" style="display: none;">
+      <button class="textBox {label.clickable ? 'clickable' : 'static'}" on:click={() => { if (label.clickable) focusOnModule(label.id); }}>
+        {label.name}
+      </button>
+    </div>
+  {/each}
+
+  {#each labelsData as label}
+    {#if label.subAnnotations}
+      {#each label.subAnnotations as sub}
+        <div data-subdot-id={sub.id} class="indicatorDot subDot" style="display: none;"></div>
+        <div data-sublabel-id={sub.id} class="spaceLabel mediaCard" style="display: none;">
+          <div class="cardHeader">{sub.title}</div>
+          <div class="cardContent">
+            {#if sub.type === 'text'}
+              <p class="bodyText">{sub.content}</p>
+            {:else if sub.type === 'image'}
+              <img src={sub.content} alt={sub.title} class="mediaElement" />
+            {:else if sub.type === 'video'}
+              <video src={sub.content} autoplay loop muted playsinline class="mediaElement"></video>
+            {/if}
+          </div>
+        </div>
+      {/each}
+    {/if}
+  {/each}
+
+  {#if currentMode === "focused"}
+    <button class="backBtn" on:click={triggerGoBack}>
+      ← Back to overview
+    </button>
+  {/if}
 </section>
 
 <style>
-  :global(body) {
+  :global(html), :global(body) {
     overflow-x: hidden;
-    min-width: 290px;
+    overflow-y: auto !important;
     width: 100%;
-    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  :global(body) {
+    min-width: 290px;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     -webkit-font-smoothing: antialiased;
+    font-family: "Barlow Semi Condensed", sans-serif;
+    /* background-color: #000000; */
   }
   * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Roboto", sans-serif;
-    line-height: 25px;
+    font-family: "Barlow Semi Condensed", sans-serif;
   }
-
-  .revolvingLattern {
-    width: 100%;
-    margin: 0 auto;
-    /* background-color: #220500; */
-  }
-
-  .stickyWrapper {
+  
+  .modelCtn {
     position: relative;
     width: 100%;
-  }
-
-  .stickyInner {
-    position: relative;
-    width: 100%;
-    height: 100vh;
+    height: 90vh; 
+    /* background-color: #000000; */
     overflow: hidden;
   }
 
-  .stickyBackground,
-  .stickyForeground {
+  .loaderOverlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none;
-  }
-
-  .stickyBackground {
-    z-index: 5;
-  }
-  .stickyForeground {
-    z-index: 10;
-  }
-
-  .canvasContainer {
-    width: 100%;
-    height: 100%;
-  }
-
-  .foregroundTextContainer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 20;
+    background-color: #000000;
+    z-index: 200;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    pointer-events: none;
+    gap: 16px;
+  }
+  .loaderSpinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #00d2ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  .loaderText {
+    color: #ffffff;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .loaderBarContainer {
+    width: 200px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .loaderBar {
+    height: 100%;
+    background: #00d2ff;
+    transition: width 0.1s ease-out;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  .model {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 
-  .textBox,
-  .transitionTextBox {
+  .dragZone {
     position: absolute;
-    width: 60%;
-    max-width: 450px;
-    text-align: center;
-    color: #edd9bb;
-    opacity: 0;
-    /* transform: translateY(20px); */
-    transition: opacity 0.5s ease-in-out;
-    padding: 20px;
-    border-radius: 20px;
-    background: rgba(231, 231, 231, 0.04);
-    border-radius: 16px;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2; 
+    cursor: grab;
+    touch-action: none; 
+  }
+  .dragZone:active {
+    cursor: grabbing;
   }
 
-  .head {
-    font-size: 18px;
-    margin-bottom: 10px;
-    font-weight: bold;
-  }
-  .body {
-    font-size: 16px;
+  .mobileHint {
+    display: none;
   }
 
-  .lanternMode {
-    top: 40px;
+  @media (max-width: 767px) {
+    .dragZone {
+      top: 12%;
+      height: 76%;
+      left: 5%;
+      width: 90%;
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+    }
+    .mobileHint {
+      display: block;
+      position: absolute;
+      top: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
   }
 
-  .textBox.active {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .candleOverlay {
+  .hudOverlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     pointer-events: none;
-    background: radial-gradient(
-      circle at center,
-      rgba(255, 220, 150, 0.05) 0%,
-      rgba(50, 20, 0, 0.2) 60%,
-      rgba(106, 54, 13, 0.25) 100%
-    );
-    mix-blend-mode: multiply;
+    z-index: 5;
+  }
+  .connectionLine {
+    stroke: #ffffff;
+    stroke-width: 1px;
+    opacity: 0.6;
+    stroke-dasharray: 1 2;
+  }
+  .connectionLine.focusLine {
+    stroke: #00ffaa; 
+    stroke-width: 1px;
   }
 
-  @media (max-width: 1200px) {
-    .textBox,
-    .transitionTextBox {
-      width: 40%;
-      font-size: 14px;
-      padding: 10px;
-    }
-    .clockMode {
-      top: unset;
-    }
-
-    .head {
-      font-size: 16px;
-      margin-bottom: 10px;
-      font-weight: bold;
-    }
-    .body {
-      font-size: 14px;
+  .spaceLabel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: auto; 
+    z-index: 10;
+    will-change: transform;
+  }
+  .indicatorDot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 6px;
+    background-color: #00d2ff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #00d2ff;
+    z-index: 10;
+    pointer-events: none;
+    will-change: transform;
+  }
+  .indicatorDot.subDot {
+    background-color: #00d2ff;
+    box-shadow: 0 0 8px #00d2ff;
+  }
+  .textBox {
+    color: #ffffff;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 200;
+    text-transform: uppercase;
+    white-space: nowrap;
+    background: rgba(10, 10, 10, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+  @media (max-width: 767px) {
+    .textBox {
+      font-size: 12px;
+      padding: 6px 8px;
     }
   }
+  .textBox.clickable {
+    cursor: pointer;
+  }
+  .textBox.clickable:hover {
+    border-color: #00d2ff;
+    background: #00d2ff;
+    color: #000000;
+    box-shadow: 0 0 15px rgba(0, 210, 255, 0.6);
+  }
+  .textBox.static {
+    color: rgba(255, 255, 255, 0.724);
+  }
+  .mediaCard {
+    width: 240px;
+    max-width: 65vw; 
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid #ffffff28;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    overflow: hidden;
+    color: #ffffff;
+  }
 
-  @media (max-width: 700px) {
-    .textBox,
-    .transitionTextBox {
-      width: 90%;
-      font-size: 14px;
-      padding: 10px;
+  .cardHeader {
+    background: rgba(0, 255, 170, 0.15);
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(0, 255, 170, 0.2);
+    color: #ffffff;
+  }
+
+  .bodyText {
+    font-size: 12px;
+    color: rgb(255, 255, 255);
+  }
+
+  .mediaElement {
+    display: block;
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #050505;
+  }
+
+  .backBtn {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    background: rgba(10, 10, 10, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    transition: transform 0.2s ease, background 0.2s ease;
+    padding: 12px 24px;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  @media (max-width: 767px) {
+    .backBtn {
+      padding: 10px 18px;
+      font-size: 12px;
+      bottom: 25px;
     }
-    .lanternMode,
-    .clockMode {
-      top: 60px;
-    }
-    .head {
-      font-size: 16px;
-      margin-bottom: 10px;
-      font-weight: bold;
-    }
-    .body {
-      font-size: 14px;
-    }
+  }
+  .backBtn:hover {
+    border-color: #00d2ff;
+    background: #00d2ff;
+    color: #000000;
+    box-shadow: 0 0 15px rgba(0, 210, 255, 0.6);
   }
 </style>
