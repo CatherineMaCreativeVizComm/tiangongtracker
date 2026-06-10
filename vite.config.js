@@ -6,7 +6,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: 'https://multimedia.scmp.com/components/2026/spacestation-wgc',
+  base: 'https://multimedia.scmp.com/components/2026/tiangongtracker-wgc',
   server: {
     proxy: {
       '/api/multimedia': {
@@ -29,7 +29,13 @@ export default defineConfig({
     //   }
     // })
   ],
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2022'
+    }
+  },
   build: {
+    target: 'es2022',
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name]-v1.js',
