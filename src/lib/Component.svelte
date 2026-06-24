@@ -213,8 +213,8 @@
       new Style({
         image: new Circle({
           radius: 5,
-          fill: new Fill({ color: "#00ffcc" }),
-          stroke: new Stroke({ color: "#ffffff", width: 1 }),
+          fill: new Fill({ color: "#63cefb" }),
+          stroke: new Stroke({ color: "#63cefb", width: 1 }),
         }),
       }),
     );
@@ -225,7 +225,7 @@
     fullPathFeature.setStyle(
       new Style({
         stroke: new Stroke({
-          color: "rgba(255, 255, 255, 0.6)",
+          color: "#71717be8",
           width: 1,
           lineDash: [1, 2],
         }),
@@ -258,7 +258,7 @@
             text: new Text({
               font: '100 10px "Barlow Semi Condensed", sans-serif',
               text: feature.get("name") || "",
-              fill: new Fill({ color: "rgba(255, 255, 255, 0.7)" }),
+              fill: new Fill({ color: "#71717b" }),
               placement: 'point', 
               overflow: false, 
               textAlign: 'center',
@@ -282,7 +282,7 @@
                 return geom;
               },
               stroke: new Stroke({
-                color: "rgba(255, 255, 255, 0.35)", 
+                color: "#71717ba1", 
                 width: 1,                           
               }),
             })
@@ -303,12 +303,12 @@
         return new Style({
           image: new Circle({
             radius: 2,
-            fill: new Fill({ color: "rgba(255, 255, 255, 0.4)" }),
+            fill: new Fill({ color: "#71717b" }),
           }),
           text: new Text({
             font: '100 10px "Barlow Semi Condensed", sans-serif',
             text: feature.get("NAME") || "", 
-            fill: new Fill({ color: "rgba(255, 255, 255, 0.7)" }),
+            fill: new Fill({ color: "#71717b" }),
             offsetX: 8, 
             textAlign: 'left',
             textBaseline: 'middle'
@@ -397,21 +397,16 @@
 />
 
 <section class="trackerCtn">
-  {#if loading}
-    <div class="overlay">Loading live orbital tracker......</div>
-  {:else if error}
-    <div class="overlay error">{error}</div>
-  {/if}
+  <div class="overlayCtn">
+    {#if loading}
+      <div class="overlay">Loading live orbital tracker......</div>
+    {:else if error}
+      <div class="overlay error">{error}</div>
+    {/if}
+  </div>
 
   <div class="mapCtn">
-    <div class="panelHead">Tiangong orbital tracker</div>
-    <div class="livingDataBox">
-      <div>Real time: {currentTimeDisplay}</div>
-      <div>Latitude: {lat.toFixed(4)}°</div>
-      <div>Longitude: {lng.toFixed(4)}°</div>
-      <div>Altitude: {alt.toFixed(1)} km</div>
-      <div>Velocity: {Math.round(velocity).toLocaleString()} km/h</div>
-    </div>
+    <!-- <div class="panelHead">Tiangong orbital tracker</div> -->
     <div class="mapPanel">
       <div class="locationMap">
         <div class="note">Ground Track View</div>
@@ -422,8 +417,15 @@
         <div class="crosshairWrapper">
           <div class="crosshair"></div>
           <div bind:this={simContainer} class="radarMap" style="width: 100%; height: 100%;"></div>
+        </div>
       </div>
     </div>
+    <div class="livingDataBox">
+      <div>Real time: {currentTimeDisplay}</div>
+      <div>Latitude: {lat.toFixed(4)}°</div>
+      <div>Longitude: {lng.toFixed(4)}°</div>
+      <div>Altitude: {alt.toFixed(1)}km</div>
+      <div>Velocity: {Math.round(velocity).toLocaleString()}km/h</div>
     </div>
   </div>
 </section>
@@ -449,13 +451,14 @@
     font-family: "Barlow Semi Condensed", sans-serif;
   }
 
-  .trackerCtn, .mapCtn{
-    background-color: #000000;
+  .trackerCtn{
+    /* background-color: #000000; */
+    /* height: 44vh; */
+    max-width: 1200px;
   }
 
   .mapPanel{
     width: 100%;
-    max-width: 1200px;
     display: flex;
     gap: 20px;
     flex-direction: row;
@@ -474,33 +477,34 @@
     border: 1px solid #ffffff30;
     border-radius: 10px;
     margin-bottom: 10px;
+    aspect-ratio: 2/1;
   }
 
   .map{
     width: 100%;
     height: 100%;
-    background: transparent !important;
+    background: black !important;
   }
 
   .panelHead {
-    color: #ffffff;
+    /* color: #ffffff;
     font-size: 15px;
     font-weight: 500;
-    margin: 10px;
+    margin: 10px; */
   }
 
   .livingDataBox {
-    font-size: 12px;
-    font-weight: 300;
-    color: #00ffcc;
+    font-size: 14px;
+    font-weight: 200;
+    color: #63cefb;
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
     align-content: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     align-items: center;
-    gap:30px;
-    margin: 10px;
+    /* gap:30px; */
+    margin: 10px 5px;
   }
 
   .livingCameraBox .note, .locationMap .note {
@@ -508,10 +512,12 @@
     bottom: 10px;
     right: 10px;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 300;
     z-index: 10;
     padding: 2px 4px;
-    background-color: #ffffff;
+    color: #ffffff;
+    text-shadow: 0px 4px 7px #ffffff6a;
+    /* background-color: #ffffff; */
   }
 
   .crosshairWrapper {
@@ -528,7 +534,7 @@
     width: 30px;
     height: 30px;
     transform: translate(-50%, -50%);
-    border: 2px solid rgba(255, 68, 68, 0.924);
+    border: none;
     border-radius: 50%;
     z-index: 10;
     pointer-events: none;
@@ -537,7 +543,7 @@
   .crosshair::after {
     content: "";
     position: absolute;
-    background: rgba(255, 68, 68, 0.924);
+    background: #63cefb;
   }
   .crosshair::before {
     top: 50%;
@@ -554,26 +560,41 @@
     transform: translateX(-50%);
   }
 
-  .overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
+  .overlayCtn {
+    position: relative;
     width: 100%;
     height: 100%;
-    background: rgba(13, 15, 18, 0.95);
     display: flex;
     align-items: center;
+    z-index: 20;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-content: center;
     justify-content: center;
-    z-index: 10;
+  }
+
+  .overlay{
+    width: 100%;
+    height: 40vh;
+    background: rgba(13, 15, 18, 0.876);
+    top: 0;
+    padding-top: 20vh;
+    position: absolute;
     font-size: 14px;
-    color: #00ffcc;
+    color: #63cefb;
     text-align: center;
   }
+
   .error {
     color: #ff4444;
   }
 
   @media screen and (max-width: 600px){
+    .trackerCtn{
+      width: 96%;
+      margin: 0 auto;
+    }
+
     .mapPanel{
       display: unset;
     }
@@ -586,6 +607,7 @@
     .livingDataBox{
       flex-wrap: wrap;
       gap: 5px;
+      margin: 10px 5px;
     }
     .livingDataBox div{
       min-width: 160px;
